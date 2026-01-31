@@ -1,0 +1,86 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Noto+Sans:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --active: #0ea5e9;
+    --frozen: #8b5cf6;
+    --deleted: #ef4444;
+    --ai: #10b981;
+    --user: #f59e0b;
+
+    --bg-canvas: #fafaf9;
+    --bg-node: #f5f5f4;
+    --text-primary: #1c1917;
+  }
+
+  .dark {
+    --bg-canvas: #111318;
+    --bg-node: #1a1d26;
+    --text-primary: #ffffff;
+  }
+
+  body {
+    @apply font-body bg-background-light dark:bg-background-dark text-slate-900 dark:text-white overflow-hidden;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  /* Custom scrollbar for clean look (from code2.html) */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #282e39;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3c4453;
+  }
+
+  .blur-backdrop {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .neon-glow {
+    filter: drop-shadow(0 0 5px #135bec) drop-shadow(0 0 10px #135bec);
+  }
+
+  .glass-panel {
+    background: rgba(17, 19, 24, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .glass-card-active {
+    background: rgba(19, 91, 236, 0.1);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(19, 91, 236, 0.4);
+    box-shadow: 0 0 20px rgba(19, 91, 236, 0.15);
+  }
+
+  .glass-card-frozen {
+    background: rgba(26, 29, 38, 0.8);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    opacity: 0.7;
+  }
+}

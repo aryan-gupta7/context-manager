@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Fractal Workspace - Expanded Node</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Noto+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#135bec",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101622",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"],
+                        "body": ["Noto Sans", "sans-serif"],
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom scrollbar for clean look */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #282e39;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3c4453;
+        }
+        .blur-backdrop {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-[#111318] dark:text-white font-display overflow-hidden h-screen flex flex-col">
+<!-- Top Navigation Bar -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-gray-200 dark:border-[#282e39] bg-white dark:bg-[#111318] px-10 py-3 z-10 shrink-0">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-4 text-[#111318] dark:text-white">
+<div class="size-6 text-primary">
+<svg fill="none" viewbox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path d="M24 4C25.7818 14.2173 33.7827 22.2182 44 24C33.7827 25.7818 25.7818 33.7827 24 44C22.2182 33.7827 14.2173 25.7818 4 24C14.2173 22.2182 22.2182 14.2173 24 4Z" fill="currentColor"></path>
+</svg>
+</div>
+<h2 class="text-lg font-bold leading-tight tracking-[-0.015em]">Fractal Workspace</h2>
+</div>
+<label class="flex flex-col min-w-40 !h-10 max-w-64 hidden md:flex">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-full border border-gray-200 dark:border-[#282e39] bg-gray-50 dark:bg-[#1c212b]">
+<div class="text-[#9da6b9] flex items-center justify-center pl-4 rounded-l-lg border-r-0">
+<span class="material-symbols-outlined text-[20px]">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-[#111318] dark:text-white focus:outline-0 focus:ring-0 border-none bg-transparent focus:border-none h-full placeholder:text-[#9da6b9] px-4 rounded-l-none border-l-0 pl-2 text-base font-normal leading-normal" placeholder="Search nodes..." value=""/>
+</div>
+</label>
+</div>
+<div class="flex flex-1 justify-end gap-8">
+<div class="flex items-center gap-9 hidden sm:flex">
+<a class="text-[#111318] dark:text-white text-sm font-medium leading-normal hover:text-primary transition-colors" href="#">Canvas</a>
+<a class="text-[#9da6b9] text-sm font-medium leading-normal hover:text-primary transition-colors" href="#">Graph View</a>
+<a class="text-[#9da6b9] text-sm font-medium leading-normal hover:text-primary transition-colors" href="#">Settings</a>
+</div>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 ring-2 ring-gray-200 dark:ring-[#282e39]" data-alt="User avatar with geometric pattern" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCmDoZmt72kcgvp9DDTt64_CwBKLRWrFkLQ-0RW22-oAblmongfLVZCa7HhmeyhCtiqynPrUuqSmjgvtuyTPVKoaxRzP0KGgNhWcQ8EupIYwWwUy1ZHvFhClTR74qjjUSuxrB9zPySPMYQbDjm4g7X8JTH7fgTNN2G88M6EgCD4d87Gh6iLUdcn_Ff9PsTUn3scVcwe22wLmLsk63Q3Q5lIL87ksUJwv2nvfpwasWci0Xui3qyXnMtsLaEJ72jOjzJNvnErFyeZb-TV");'></div>
+</div>
+</header>
+<!-- Main Workspace Area -->
+<div class="flex flex-1 relative overflow-hidden">
+<!-- Sidebar Navigation -->
+<div class="w-64 border-r border-gray-200 dark:border-[#282e39] bg-white dark:bg-[#111318] flex flex-col hidden lg:flex shrink-0">
+<div class="p-4 flex flex-col gap-6">
+<div class="flex items-center gap-3 px-2">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Space avatar purple gradient" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCFrowFdCRCYlZBk9KIIxUh2K4rQtMPm3Vz9U1Rji__dwubsEQnZGPVmrIRPX5wGk5rHBcs73v32z6zGg2yrPgvx4A1ieckDU1pXw4useiEfm0D04eJxTPcZwwwkzMqSo3CpqukrQO9porkYALEndZrC0_8TyAfmF1FFHOsQJb7Uth52oFWKy_c0IMgYtjE2TUuHIdqrEN7p3ZSAkg_c4rY5he25M110k-vhjBjMwASycZ8HGPYm8bKZHUUqzQxWr_-qz14tF4u94Pl");'></div>
+<div class="flex flex-col">
+<h1 class="text-[#111318] dark:text-white text-base font-medium leading-normal">My Space</h1>
+<p class="text-[#9da6b9] text-sm font-normal leading-normal">Pro Plan</p>
+</div>
+</div>
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg text-[#9da6b9] hover:bg-gray-100 dark:hover:bg-[#282e39] cursor-pointer transition-colors">
+<span class="material-symbols-outlined">home</span>
+<p class="text-sm font-medium leading-normal">Home</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary dark:text-white dark:bg-[#282e39]">
+<span class="material-symbols-outlined font-variation-settings-fill">folder</span>
+<p class="text-sm font-medium leading-normal">Projects</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg text-[#9da6b9] hover:bg-gray-100 dark:hover:bg-[#282e39] cursor-pointer transition-colors">
+<span class="material-symbols-outlined">group</span>
+<p class="text-sm font-medium leading-normal">Shared</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg text-[#9da6b9] hover:bg-gray-100 dark:hover:bg-[#282e39] cursor-pointer transition-colors">
+<span class="material-symbols-outlined">archive</span>
+<p class="text-sm font-medium leading-normal">Archive</p>
+</div>
+</div>
+<div class="pt-4 border-t border-gray-200 dark:border-[#282e39]">
+<p class="px-3 text-xs font-bold text-[#9da6b9] uppercase tracking-wider mb-2">Recent Nodes</p>
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg text-[#111318] dark:text-white hover:bg-gray-100 dark:hover:bg-[#282e39] cursor-pointer">
+<span class="material-symbols-outlined text-[18px] text-[#9da6b9]">radio_button_unchecked</span>
+<p class="text-sm font-medium leading-normal truncate">Neural Arch</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg text-[#111318] dark:text-white hover:bg-gray-100 dark:hover:bg-[#282e39] cursor-pointer">
+<span class="material-symbols-outlined text-[18px] text-[#9da6b9]">radio_button_unchecked</span>
+<p class="text-sm font-medium leading-normal truncate">Design System V2</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Canvas Background with Blur -->
+<div class="flex-1 relative bg-[#f6f6f8] dark:bg-[#0b0e14] overflow-hidden">
+<!-- Background Image simulating the canvas -->
+<div class="absolute inset-0 bg-cover bg-center opacity-30 dark:opacity-20 pointer-events-none" data-alt="Abstract node network background with connecting lines" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBcuLhyWnPb1PP2sOAcINcF_PiuRAXxvLyut5Q2swbex_6TiqnrWF83v1LpzBcmQizhsOh9iZeicu3_MKw3XsHxg2O_YXRv2gldKXZEb2_8Fnn-cE85CozaSE3U5oo3zoyacyp2-1-MDi-jgRxhZf19alIIB1g5j6eI1KcbA51DPnz9ZpsjZAa83vZYygZI8d8uMJYBrOj5nNkrSjDLQra8G-iIAxU4xTd2Dqp51GiSi4L75yUElFNL7nVC1EcIrQm0fblig8AeQ-zK"); filter: blur(4px);'>
+</div>
+<!-- Floating Nodes (Simulated in background) -->
+<div class="absolute top-1/4 left-1/4 w-32 h-32 bg-[#282e39] rounded-xl shadow-lg border border-[#3c4453] opacity-40 blur-[2px]"></div>
+<div class="absolute bottom-1/3 right-1/3 w-48 h-48 bg-[#282e39] rounded-xl shadow-lg border border-[#3c4453] opacity-40 blur-[2px]"></div>
+<!-- Main Chat Overlay / Expanded Node -->
+<div class="absolute inset-0 flex items-center justify-center p-4 sm:p-8 backdrop-blur-[2px]">
+<div class="flex flex-col w-full max-w-[1000px] h-full max-h-[85vh] bg-white dark:bg-[#151a23] rounded-2xl shadow-2xl border border-gray-200 dark:border-[#282e39] overflow-hidden relative">
+<!-- Expanded Node Header & Lineage -->
+<div class="flex flex-col border-b border-gray-200 dark:border-[#282e39] bg-gray-50/80 dark:bg-[#1a202a]/80 blur-backdrop z-10">
+<!-- Breadcrumbs & Controls -->
+<div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-[#282e39]/50">
+<div class="flex flex-wrap items-center gap-2">
+<span class="material-symbols-outlined text-[#9da6b9]">hub</span>
+<a class="text-[#9da6b9] text-sm font-medium leading-normal hover:text-primary" href="#">Root Canvas</a>
+<span class="text-[#9da6b9] text-sm">/</span>
+<a class="text-[#9da6b9] text-sm font-medium leading-normal hover:text-primary" href="#">Project Alpha</a>
+<span class="text-[#9da6b9] text-sm">/</span>
+<span class="text-[#111318] dark:text-white text-sm font-bold leading-normal bg-primary/10 px-2 py-0.5 rounded text-primary">Neural Arch</span>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 text-[#9da6b9] hover:text-[#111318] dark:hover:text-white hover:bg-gray-200 dark:hover:bg-[#282e39] rounded-lg transition-colors">
+<span class="material-symbols-outlined text-[20px]">open_in_full</span>
+</button>
+<button class="p-2 text-[#9da6b9] hover:text-[#111318] dark:hover:text-white hover:bg-gray-200 dark:hover:bg-[#282e39] rounded-lg transition-colors">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+</div>
+<!-- Lineage Summary Card (Top Section) -->
+<div class="px-6 py-4 bg-gradient-to-r from-gray-50 to-white dark:from-[#1a202a] dark:to-[#151a23]">
+<div class="flex items-start gap-4 p-4 rounded-xl border border-gray-200 dark:border-[#282e39] bg-white dark:bg-[#1c222e] shadow-sm">
+<div class="p-2 bg-primary/10 rounded-lg text-primary shrink-0">
+<span class="material-symbols-outlined">account_tree</span>
+</div>
+<div class="flex flex-col gap-1 flex-1">
+<div class="flex items-center justify-between">
+<p class="text-[#111318] dark:text-white text-sm font-bold uppercase tracking-wide">Lineage Context</p>
+<span class="text-xs text-[#9da6b9] bg-gray-100 dark:bg-[#282e39] px-2 py-1 rounded">3 Parent Nodes</span>
+</div>
+<p class="text-[#5b6579] dark:text-[#9da6b9] text-sm font-normal leading-relaxed">
+                                        This node inherits context from <span class="text-primary font-medium">System Architecture</span> and <span class="text-primary font-medium">Scalability Requirements</span>. Key constraints: Low latency, modular plugins, and dark mode first design.
+                                    </p>
+</div>
+</div>
+</div>
+</div>
+<!-- Chat Area -->
+<div class="flex-1 overflow-y-auto p-6 flex flex-col gap-6 bg-white dark:bg-[#151a23]">
+<!-- Date Separator / System Message -->
+<div class="flex justify-center">
+<span class="text-xs font-medium text-[#9da6b9] px-3 py-1 rounded-full border border-gray-200 dark:border-[#282e39] bg-gray-50 dark:bg-[#1c222e]">
+                                Today, 10:23 AM
+                            </span>
+</div>
+<!-- User Message (Right) -->
+<div class="flex flex-row-reverse items-end gap-3 group">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-8 ring-2 ring-white dark:ring-[#151a23]" data-alt="User profile picture" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuD97LOFF4So1Wnqsvo6VWJhZEj3XYzzdZpqXvCNjcShnBsOyLMVcq0Xa_iqKrsd6XO7u1Kpy67yOXP9XCrUXzG8ju3bgYfWPPwt_hVKbnNWxC7115oeHSYeBE25QFni0FRtN2CkYGriZpJQ6LSPyictOOwPWedOsbVArYCYwMAGX6FiRe8e-1POB6ZCNkKFwtJEt4YYpPTReted3-Zog5BGibuPADFk59cNmrofkGQ-Z1fWBLD_8W6q1DhmqsjR46pX__iNf4BWivAZ");'></div>
+<div class="flex flex-col items-end gap-1 max-w-[70%]">
+<div class="p-4 rounded-2xl rounded-tr-sm bg-primary text-white shadow-md">
+<p class="text-sm font-normal leading-relaxed font-body">
+                                        I need to brainstorm the plugin architecture based on the parent constraints. Can you suggest a pattern?
+                                    </p>
+</div>
+<span class="text-[11px] text-[#9da6b9] opacity-0 group-hover:opacity-100 transition-opacity">10:24 AM</span>
+</div>
+</div>
+<!-- System/Summary Message (Centered) -->
+<div class="flex justify-center my-2">
+<div class="flex items-center gap-2 max-w-[80%] px-4 py-2 rounded-lg border border-dashed border-primary/30 bg-primary/5 text-primary text-sm italic">
+<span class="material-symbols-outlined text-[16px]">auto_awesome</span>
+<span>Analyzing context from parent nodes...</span>
+</div>
+</div>
+<!-- AI Message (Left) -->
+<div class="flex items-start gap-4 group w-full">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 shrink-0 mt-1 shadow-sm ring-1 ring-gray-200 dark:ring-[#282e39]" data-alt="AI assistant avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCMoeYnc3ZcOjk6n3h5RY6LnY0u4jKTs_GnWVvfxQG0dcTdxBb1VzMt7bE1xIoW6JKoQhIpHvvyl7hAjUytCEeTNERtiheAiO0sDFaNrSmRE-5t6uCd8BCcsWruTptoO3Getn6UP4O8P6bkBg7HP6lo0egvvwP4ixsNaqlRdhlXdDDd60jsH_Y7QKuGt2mmJcsDbUiGqnyYTF6eDIEB9YW0E8vgZJLRxtzdQwKyp2MKkLX9wWA1511iUtZ8E5zbkCb6K5HwCiz3he7n");'></div>
+<div class="flex flex-col gap-2 max-w-[85%]">
+<div class="flex items-center gap-2">
+<span class="text-sm font-bold text-[#111318] dark:text-white">Fractal AI</span>
+<span class="text-[10px] text-[#9da6b9] border border-gray-200 dark:border-[#282e39] px-1.5 py-0.5 rounded">GPT-4o</span>
+</div>
+<div class="p-5 rounded-2xl rounded-tl-none bg-gray-100 dark:bg-[#1c222e] border border-transparent dark:border-[#282e39] shadow-sm text-[#111318] dark:text-[#e0e2e7]">
+<p class="text-sm font-normal leading-relaxed font-body mb-3">
+                                        Based on the focus on <strong>scalability</strong> and <strong>modularity</strong> from the parent context, I recommend the <strong>Observer Pattern</strong> combined with a micro-kernel architecture.
+                                    </p>
+<p class="text-sm font-normal leading-relaxed font-body mb-4">
+                                        Here is a proposed structure:
+                                    </p>
+<!-- Code snippet block -->
+<div class="bg-gray-200 dark:bg-[#111318] rounded-lg p-3 font-mono text-xs text-[#111318] dark:text-[#a5b3ce] overflow-x-auto mb-3 border border-gray-300 dark:border-[#282e39]">
+<div class="flex justify-between items-center mb-2 border-b border-gray-300 dark:border-[#282e39] pb-2">
+<span>architecture.json</span>
+<span class="material-symbols-outlined text-[14px] cursor-pointer hover:text-white">content_copy</span>
+</div>
+<pre>{
+  "core": "EventBus",
+  "plugins": [
+    "AuthModule",
+    "DataVisualization", 
+    "ExternalAPI"
+  ] 
+}
+</pre>
+</div>
+<div class="flex gap-2 mt-4">
+<button class="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-[#3c4453] hover:bg-gray-200 dark:hover:bg-[#282e39] text-xs font-medium transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">play_arrow</span>
+                                            Simulate
+                                        </button>
+<button class="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-[#3c4453] hover:bg-gray-200 dark:hover:bg-[#282e39] text-xs font-medium transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">add_circle</span>
+                                            Create Child Node
+                                        </button>
+</div>
+</div>
+<div class="flex gap-4 px-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-[#9da6b9] hover:text-[#111318] dark:hover:text-white text-xs flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">thumb_up</span>
+                                        Helpful
+                                    </button>
+<button class="text-[#9da6b9] hover:text-[#111318] dark:hover:text-white text-xs flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">refresh</span>
+                                        Regenerate
+                                    </button>
+</div>
+</div>
+</div>
+<!-- User Message (Right) -->
+<div class="flex flex-row-reverse items-end gap-3 group">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-8 ring-2 ring-white dark:ring-[#151a23]" data-alt="User profile picture" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCH-SFqfAF7B2g-2_Sp1te0AyfPuRsdo0V-4_AE1SZsTLLzvCmspM-LL_P3KkAMfm27_fxuOigw97lzNh1xUZAlbRoZrk-lNFQtJ2XL9Du6w3n60scGNp_xepCcrYm0ZBOi95Zax755-CDpGuyYrX_By6xAlUtP_GvxQRfmDTRkiBdHOLv5RgjnpuT8p69NjkGEn2p430XQY9lidPEKHehIWzb4nxl2JX7ANM5OKF3BHwaScAjKQ7n1SgbHPmVUUBns1M4SSo0h39ZP");'></div>
+<div class="flex flex-col items-end gap-1 max-w-[70%]">
+<div class="p-4 rounded-2xl rounded-tr-sm bg-primary text-white shadow-md">
+<p class="text-sm font-normal leading-relaxed font-body">
+                                        That looks solid. Let's create a child node for the 'EventBus' details.
+                                    </p>
+</div>
+<span class="text-[11px] text-[#9da6b9] opacity-0 group-hover:opacity-100 transition-opacity">10:28 AM</span>
+</div>
+</div>
+</div>
+<!-- Input Area -->
+<div class="p-4 bg-white dark:bg-[#151a23] border-t border-gray-200 dark:border-[#282e39]">
+<div class="relative flex items-end gap-2 bg-gray-50 dark:bg-[#1c222e] border border-gray-200 dark:border-[#282e39] rounded-xl p-2 shadow-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all">
+<button class="p-2 text-[#9da6b9] hover:text-primary rounded-lg hover:bg-gray-200 dark:hover:bg-[#282e39] transition-colors self-end mb-0.5">
+<span class="material-symbols-outlined text-[20px]">add_circle</span>
+</button>
+<textarea class="flex-1 bg-transparent border-none focus:ring-0 text-[#111318] dark:text-white placeholder-[#9da6b9] resize-none h-auto min-h-[44px] max-h-[120px] py-3 text-sm font-body" placeholder="Ask follow up questions or drag context here..." rows="1"></textarea>
+<div class="flex items-center gap-1 pb-1">
+<button class="p-2 text-[#9da6b9] hover:text-[#111318] dark:hover:text-white rounded-lg hover:bg-gray-200 dark:hover:bg-[#282e39] transition-colors">
+<span class="material-symbols-outlined text-[20px]">mic</span>
+</button>
+<button class="p-2 bg-primary hover:bg-blue-600 text-white rounded-lg shadow-sm transition-colors">
+<span class="material-symbols-outlined text-[20px]">send</span>
+</button>
+</div>
+</div>
+<div class="flex justify-between items-center mt-2 px-1">
+<p class="text-[10px] text-[#9da6b9]">Press <span class="font-mono bg-gray-100 dark:bg-[#282e39] px-1 rounded">Enter</span> to send, <span class="font-mono bg-gray-100 dark:bg-[#282e39] px-1 rounded">Shift+Enter</span> for new line</p>
+<div class="flex gap-3">
+<span class="text-[10px] text-[#9da6b9] flex items-center gap-1 cursor-pointer hover:text-primary"><span class="material-symbols-outlined text-[12px]">history</span> History</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</body></html>
