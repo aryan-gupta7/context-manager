@@ -1,11 +1,18 @@
 import { create } from 'zustand';
 import { type Node, type Edge, type Connection, addEdge, applyNodeChanges, applyEdgeChanges, type NodeChange, type EdgeChange } from 'reactflow';
 import type { NodeData, Message } from '../types/node.types';
+import { nodesApi, projectsApi, type Project } from '../services/api/client';
 
 interface AppState {
   // Canvas State
   nodes: Node<NodeData>[];
   edges: Edge[];
+  isInitialized: boolean;
+  
+  // Project State
+  projects: Project[];
+  currentProjectId: string | null;
+  createProjectModalOpen: boolean;
   
   // UI State
   selectedNodeId: string | null;
@@ -17,7 +24,15 @@ interface AppState {
   loading: Record<string, boolean>; // generic loading states by key
   toasts: Array<{ id: string; type: 'success' | 'error' | 'info'; message: string }>;
 
-  // Actions
+  // Project Actions
+  fetchProjects: () => Promise<void>;
+  setCurrentProject: (id: string | null) => Promise<void>;
+  createProject: (name: string, description?: string) => Promise<Project | null>;
+  setCreateProjectModalOpen: (open: boolean) => void;
+
+  // Node Actions
+  fetchNodes: () => Promise<void>;
+  setNodes: (nodes: Node<NodeData>[]) => void;
   onNodesChange: (changes: NodeChange[]) => void;
   onEdgesChange: (changes: EdgeChange[]) => void;
   onConnect: (connection: Connection) => void;
@@ -38,43 +53,35 @@ interface AppState {
   removeToast: (id: string) => void;
 }
 
+// Helper to build edges from nodes based on parent-child relationships
+const buildEdgesFromNodes = (nodes: Node<NodeData>[]): Edge[] => {
+  const edges: Edge[] = [];
+  for (const node of nodes) {
+    if (node.data.parentId) {
+      edges.push({
+        id: `e-${node.data.parentId}-${node.id}`,
+        source: node.data.parentId,
+        target: node.id,
+        type: 'context',
+        animated: false,
+        style: { strokeWidth: 1.5 }
+      });
+    }
+  }
+  return edges;
+};
+
 const useStore = create<AppState>((set, get) => ({
-  nodes: [
-    {
-      id: 'root',
-      type: 'custom',
-      position: { x: 0, y: 0 },
-      data: {
-        title: 'AI Cognition',
-        nodeType: 'root',
-        status: 'active',
-        parentId: null,
-        messageCount: 5,
-        tokenCount: 1200,
-        lastActivity: new Date().toISOString(),
-        inheritedContext: "Foundation models and ethical constraints for the next generation."
-      },
-    },
-     {
-      id: 'node-2',
-      type: 'custom',
-      position: { x: 400, y: 300 },
-      data: {
-        title: 'Neural Pathways',
-        nodeType: 'standard',
-        status: 'active',
-        parentId: 'root',
-        messageCount: 2,
-        tokenCount: 400,
-        lastActivity: new Date().toISOString(),
-        inheritedContext: "Mapping synaptic weights to logical operators."
-      },
-    },
-  ],
-  edges: [
-      { id: 'e1-2', source: 'root', target: 'node-2', type: 'context', animated: false, style: { strokeWidth: 1.5 } }
-  ],
+  nodes: [],
+  edges: [],
+  isInitialized: false,
   
+  // Project State
+  projects: [],
+  currentProjectId: null,
+  createProjectModalOpen: false,
+  
+  // UI State
   selectedNodeId: null,
   expandedNodeId: null,
   creatingBranchNodeId: null,
@@ -83,6 +90,74 @@ const useStore = create<AppState>((set, get) => ({
   messages: {},
   loading: {},
   toasts: [],
+
+  // Project Actions
+  fetchProjects: async () => {
+    try {
+      set({ loading: { ...get().loading, projects: true } });
+      const projects = await projectsApi.getProjects();
+      set({ projects, loading: { ...get().loading, projects: false } });
+    } catch (error) {
+      console.error('Failed to fetch projects:', error);
+      get().addToast({ type: 'error', message: 'Failed to load projects' });
+      set({ loading: { ...get().loading, projects: false } });
+    }
+  },
+
+  setCurrentProject: async (id: string | null) => {
+    set({ currentProjectId: id, nodes: [], edges: [], isInitialized: false });
+    
+    if (id) {
+      try {
+        set({ loading: { ...get().loading, nodes: true } });
+        const nodes = await projectsApi.getProjectNodes(id);
+        const edges = buildEdgesFromNodes(nodes);
+        set({ nodes, edges, isInitialized: true, loading: { ...get().loading, nodes: false } });
+      } catch (error) {
+        console.error('Failed to fetch project nodes:', error);
+        get().addToast({ type: 'error', message: 'Failed to load project nodes' });
+        set({ isInitialized: true, loading: { ...get().loading, nodes: false } });
+      }
+    } else {
+      set({ isInitialized: true });
+    }
+  },
+
+  createProject: async (name: string, description?: string) => {
+    try {
+      const project = await projectsApi.createProject({ name, description });
+      set({ projects: [project, ...get().projects] });
+      get().addToast({ type: 'success', message: `Created project: ${name}` });
+      return project;
+    } catch (error) {
+      console.error('Failed to create project:', error);
+      get().addToast({ type: 'error', message: 'Failed to create project' });
+      return null;
+    }
+  },
+
+  setCreateProjectModalOpen: (open: boolean) => {
+    set({ createProjectModalOpen: open });
+  },
+
+  // Node Actions
+  fetchNodes: async () => {
+    try {
+      set({ loading: { ...get().loading, nodes: true } });
+      const nodes = await nodesApi.getNodes();
+      const edges = buildEdgesFromNodes(nodes);
+      set({ nodes, edges, isInitialized: true, loading: { ...get().loading, nodes: false } });
+    } catch (error) {
+      console.error('Failed to fetch nodes:', error);
+      get().addToast({ type: 'error', message: 'Failed to load nodes from server' });
+      set({ isInitialized: true, loading: { ...get().loading, nodes: false } });
+    }
+  },
+
+  setNodes: (nodes) => {
+    const edges = buildEdgesFromNodes(nodes);
+    set({ nodes, edges });
+  },
 
   onNodesChange: (changes) => {
     set({
@@ -103,7 +178,22 @@ const useStore = create<AppState>((set, get) => ({
   },
 
   addNode: (node) => {
-    set((state) => ({ nodes: [...state.nodes, node] }));
+    set((state) => {
+      const newNodes = [...state.nodes, node];
+      // Also add the edge if it has a parent
+      let newEdges = state.edges;
+      if (node.data.parentId) {
+        newEdges = [...state.edges, {
+          id: `e-${node.data.parentId}-${node.id}`,
+          source: node.data.parentId,
+          target: node.id,
+          type: 'context',
+          animated: false,
+          style: { strokeWidth: 1.5 }
+        }];
+      }
+      return { nodes: newNodes, edges: newEdges };
+    });
   },
 
   updateNode: (id, data) => {
@@ -152,7 +242,7 @@ const useStore = create<AppState>((set, get) => ({
 
     if (parentId) {
         const newEdges = children.map(child => ({
-            id: `e${parentId}-${child.id}`,
+            id: `e-${parentId}-${child.id}`,
             source: parentId,
             target: child.id,
             type: 'context',
@@ -217,3 +307,4 @@ const useStore = create<AppState>((set, get) => ({
 }));
 
 export default useStore;
+

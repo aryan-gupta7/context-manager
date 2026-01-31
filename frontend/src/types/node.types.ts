@@ -6,6 +6,7 @@ export interface NodeData {
   nodeType: NodeType;
   status: NodeStatus;
   parentId: string | null;
+  mergeParentId?: string | null; // Secondary parent for merged nodes
   messageCount: number;
   tokenCount: number;
   inheritedContext?: string; // Compressed parent summary
@@ -23,6 +24,7 @@ export interface Message {
 export interface CreateNodeRequest {
   title: string;
   parentId: string | null;
+  projectId?: string | null;
   nodeType: NodeType;
 }
 

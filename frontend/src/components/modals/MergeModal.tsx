@@ -3,6 +3,9 @@ import useStore from '../../store';
 import { nodesApi } from '../../services/api/client';
 import { X, GitMerge, ArrowRight } from 'lucide-react';
 
+import type { Node } from 'reactflow';
+import type { NodeData } from '../../types/node.types';
+
 const MergeModal = () => {
   const { mergingNodeId, setMergingNodeId, nodes, addToast } = useStore();
   const [description, setDescription] = useState('');
@@ -38,19 +41,66 @@ const MergeModal = () => {
 
     setIsSubmitting(true);
     try {
-      await nodesApi.mergeNode({
-        sourceNodeId: node.id,
-        targetNodeId: selectedTargetId,
-        summary: description
+      // 1. Calculate Position for New Node (Midpoint + offset)
+      const targetNode = nodes.find(n => n.id === selectedTargetId);
+      if (!targetNode) throw new Error("Target node not found");
+
+      const newX = (node.position.x + targetNode.position.x) / 2;
+      const newY = Math.max(node.position.y, targetNode.position.y) + 200;
+
+      // 2. Create the New Merged Node
+      const newNodeData = {
+          title: `Merge: ${node.data.title} & ${targetNode.data.title}`,
+          parentId: node.id, // Primary Parent (Source)
+          mergeParentId: targetNode.id, // Secondary Parent (Target)
+          nodeType: 'standard' as const,
+      };
+
+      // Call API to persist (mock)
+      const response = await nodesApi.createNode(newNodeData);
+
+      // 3. Add to Store
+      const newNode: Node<NodeData> = {
+        id: response.node_id,
+        type: 'custom',
+        position: response.position || { x: newX, y: newY },
+        data: {
+          title: response.title,
+          nodeType: response.node_type,
+          status: response.status,
+          parentId: response.parent_id,
+          mergeParentId: targetNode.id, // Ensure this is passed
+          messageCount: 0,
+          tokenCount: 0,
+          inheritedContext: `Merged context from ${node.data.title} and ${targetNode.data.title}`,
+          lastActivity: response.created_at
+        }
+      };
+
+      // Add Node
+      useStore.getState().addNode(newNode);
+
+      // 4. Create Dual Edges
+      // Edge 1: Source -> New Node
+      useStore.getState().onConnect({
+          source: node.id,
+          target: newNode.id,
+          sourceHandle: null,
+          targetHandle: null
       });
 
-      // Visual update: maybe add a specific edge type or update status
-      // For now, simpler: just toast
-      
-      addToast({ type: 'success', message: 'Merge request created successfully' });
+      // Edge 2: Target -> New Node
+      useStore.getState().onConnect({
+          source: targetNode.id,
+          target: newNode.id,
+          sourceHandle: null,
+          targetHandle: null
+      });
+
+      addToast({ type: 'success', message: 'Merged successfully into new node' });
       handleClose();
     } catch (error) {
-      addToast({ type: 'error', message: 'Failed to create merge request' });
+      addToast({ type: 'error', message: 'Failed to merge nodes' });
       console.error(error);
     } finally {
         setIsSubmitting(false);

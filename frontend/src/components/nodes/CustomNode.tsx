@@ -1,9 +1,10 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { Handle, Position, type NodeProps } from 'reactflow';
 import { Lock, Sparkles, Lightbulb, ChevronDown } from 'lucide-react';
 import clsx from 'clsx';
 import type { NodeData } from '../../types/node.types';
 import useStore from '../../store';
+import { nodesApi } from '../../services/api/client';
 
 const CustomNode = ({ id, data, selected }: NodeProps<NodeData> & { id: string }) => {
   const isRoot = data.nodeType === 'root';
@@ -13,8 +14,10 @@ const CustomNode = ({ id, data, selected }: NodeProps<NodeData> & { id: string }
   const setCreatingBranchNodeId = useStore(state => state.setCreatingBranchNodeId);
   const setMergingNodeId = useStore(state => state.setMergingNodeId);
   const removeNode = useStore(state => state.removeNode);
+  const addToast = useStore(state => state.addToast);
   const highlightedPath = useStore(state => state.highlightedPath);
   const selectedNodeId = useStore(state => state.selectedNodeId);
+  const [_isDeleting, setIsDeleting] = useState(false);
 
   const isHighlighted = highlightedPath.includes(id);
   const isDimmed = selectedNodeId && !isHighlighted;
@@ -34,10 +37,22 @@ const CustomNode = ({ id, data, selected }: NodeProps<NodeData> & { id: string }
     setMergingNodeId(id);
   };
 
-  const handleDelete = (e: React.MouseEvent) => {
+  const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm('Are you sure you want to delete this node? Children will be re-parented.')) {
-        removeNode(id);
+    if (!confirm('Are you sure you want to delete this node? Children will be re-parented.')) {
+      return;
+    }
+    
+    setIsDeleting(true);
+    try {
+      await nodesApi.deleteNode(id);
+      removeNode(id);
+      addToast({ type: 'success', message: 'Node deleted successfully' });
+    } catch (error) {
+      console.error('Failed to delete node:', error);
+      addToast({ type: 'error', message: 'Failed to delete node' });
+    } finally {
+      setIsDeleting(false);
     }
   };
 

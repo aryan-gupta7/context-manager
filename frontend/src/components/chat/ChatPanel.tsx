@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, CheckSquare, Minimize2, Send, Mic, 
@@ -12,8 +12,32 @@ const ChatPanel = () => {
   const { expandedNodeId, nodes, messages, setExpandedNode, addMessage: addStoreMessage } = useStore();
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [_isLoadingMessages, setIsLoadingMessages] = useState(false);
 
   const node = nodes.find(n => n.id === expandedNodeId);
+
+  // Load messages from backend when node is expanded
+  useEffect(() => {
+    if (!expandedNodeId) return;
+    
+    // Skip if we already have messages for this node
+    if (messages[expandedNodeId]?.length > 0) return;
+    
+    const loadMessages = async () => {
+      setIsLoadingMessages(true);
+      try {
+        const fetchedMessages = await nodesApi.getMessages(expandedNodeId);
+        // Add each message to the store
+        fetchedMessages.forEach(msg => addStoreMessage(expandedNodeId, msg));
+      } catch (error) {
+        console.error('Failed to load messages:', error);
+      } finally {
+        setIsLoadingMessages(false);
+      }
+    };
+    
+    loadMessages();
+  }, [expandedNodeId, messages, addStoreMessage]);
 
   if (!expandedNodeId || !node) return null;
 

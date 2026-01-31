@@ -24,10 +24,10 @@ INPUT:
 - Existing Knowledge Graph: {existing_graph}
 
 Extract and structure into valid JSON:
-1. FACTS: [ { "fact", "source_node", "confidence", "timestamp" } ]
-2. DECISIONS: [ { "decision", "source_node", "rationale", "confidence" } ]
+1. FACTS: [ {{ "fact", "source_node", "confidence", "timestamp" }} ]
+2. DECISIONS: [ {{ "decision", "source_node", "rationale", "confidence" }} ]
 3. OPEN QUESTIONS: [ "..." ]
-4. METADATA: { "total_messages", "token_count", "generated_by": "main-reasoner", "key_topics" }
+4. METADATA: {{ "total_messages", "token_count", "generated_by": "main-reasoner", "key_topics" }}
 
 EXCLUDE: chitchat, abandoned ideas, redundant statements, off-topic.
 OUTPUT: Valid JSON only. No explanation. No markdown."""
@@ -49,7 +49,7 @@ RULES:
 - Include confidence scores
 
 OUTPUT: Valid JSON only. No explanation. No markdown.
-{ "entities": [...], "relations": [...] }"""
+{{ "entities": [...], "relations": [...] }}"""
 
 MERGE_SYSTEM_PROMPT = """You are merging a branch's findings into the main thread.
 
@@ -70,4 +70,4 @@ INPUT:
 CONFLICT TYPES: decision conflicts, contradicting facts, incompatible assumptions.
 
 OUTPUT: Valid JSON only.
-{ "updated_target_summary": {...}, "conflicts": [...] }"""
+{{ "updated_target_summary": {{...}}, "conflicts": [...] }}"""

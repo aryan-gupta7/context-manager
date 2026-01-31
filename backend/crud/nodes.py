@@ -52,9 +52,12 @@ async def get_all_descendants(session: AsyncSession, node_id: uuid.UUID) -> list
         descendants.extend(await get_all_descendants(session, child.node_id))
     return descendants
 
-async def get_tree(session: AsyncSession) -> list[Node]:
-    """Returns all non-deleted nodes."""
-    result = await session.execute(select(Node).where(Node.status != 'deleted'))
+async def get_tree(session: AsyncSession, project_id: uuid.UUID | None = None) -> list[Node]:
+    """Returns all non-deleted nodes, optionally filtered by project_id."""
+    query = select(Node).where(Node.status != 'deleted')
+    if project_id is not None:
+        query = query.where(Node.project_id == project_id)
+    result = await session.execute(query)
     return result.scalars().all()
 
 async def calculate_position(session: AsyncSession, parent_id: uuid.UUID | None) -> tuple[float, float]:

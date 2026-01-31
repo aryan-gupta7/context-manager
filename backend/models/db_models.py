@@ -5,10 +5,23 @@ from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from database import Base
 
+class Project(Base):
+    __tablename__ = "projects"
+    
+    project_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    metadata_ = Column("metadata", JSON, default={})
+    
+    nodes = relationship("Node", back_populates="project", cascade="all, delete-orphan")
+
 class Node(Base):
     __tablename__ = "nodes"
 
     node_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=True)
     parent_id = Column(UUID(as_uuid=True), ForeignKey("nodes.node_id"), nullable=True)
     title = Column(String, nullable=False)
     node_type = Column(String, default="standard", nullable=False) # Check constraint handled by validator or DB enum if strict
@@ -19,6 +32,7 @@ class Node(Base):
     created_by = Column(String, nullable=True)
     metadata_ = Column("metadata", JSON, default={})
 
+    project = relationship("Project", back_populates="nodes")
     parent = relationship("Node", remote_side=[node_id], backref="children")
     messages = relationship("Message", back_populates="node", cascade="all, delete-orphan")
     summaries = relationship("NodeSummary", back_populates="node")

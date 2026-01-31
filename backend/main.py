@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db, init_db
 from models.api_models import (
@@ -8,7 +9,8 @@ from models.api_models import (
     MergeRequest, MergeResponse,
     DeleteRequest, DeleteResponse,
     CopyRequest,
-    TreeNodeResponse, GraphResponse, GraphEdge
+    TreeNodeResponse, GraphResponse, GraphEdge,
+    CreateProjectRequest, UpdateProjectRequest, ProjectResponse
 )
 from crud.nodes import create_node as crud_create_node, get_node_by_id_or_404, get_tree as crud_get_tree, update_node_status, calculate_position, get_node_lineage
 from crud.messages import create_message, get_messages as crud_get_messages
@@ -28,6 +30,20 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Fractal Workspace Backend", version="0.1.0")
 
+# Add CORS middleware for frontend-backend integration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.on_event("startup")
 async def on_startup():
     await init_db()
@@ -43,6 +59,7 @@ async def create_node(request: CreateNodeRequest, session: AsyncSession = Depend
 
     node_data = {
         "title": request.title,
+        "project_id": request.project_id,
         "parent_id": request.parent_id,
         "node_type": request.node_type,
         "position_x": pos_x,
@@ -53,11 +70,13 @@ async def create_node(request: CreateNodeRequest, session: AsyncSession = Depend
     node = await crud_create_node(session, node_data)
     await record_event(session, node.node_id, "NODE_CREATED", {
         "title": node.title,
-        "parent_id": str(node.parent_id) if node.parent_id else None
+        "parent_id": str(node.parent_id) if node.parent_id else None,
+        "project_id": str(node.project_id) if node.project_id else None
     })
     
     return NodeResponse(
         node_id=node.node_id,
+        project_id=node.project_id,
         parent_id=node.parent_id,
         title=node.title,
         node_type=node.node_type,
@@ -288,6 +307,7 @@ async def get_tree(session: AsyncSession = Depends(get_db)):
             status=n.status,
             node_type=n.node_type,
             has_summary=False, # Optimisation needed
+            position={"x": n.position_x, "y": n.position_y},
             children=[]
         )
         
@@ -295,7 +315,8 @@ async def get_tree(session: AsyncSession = Depends(get_db)):
     for n in nodes:
         if n.parent_id and n.parent_id in node_map:
             node_map[n.parent_id].children.append(node_map[n.node_id])
-        elif not n.parent_id:
+        else:
+            # Parent is None OR Parent is deleted/missing
             roots.append(node_map[n.node_id])
             
     return roots
@@ -341,3 +362,146 @@ async def get_graph_endpoint(node_id: uuid.UUID, session: AsyncSession = Depends
         entities=list(entities),
         relations=graph_edges
     )
+
+# ========================
+# PROJECT ENDPOINTS
+# ========================
+
+from models.db_models import Project
+from sqlalchemy import select, func as sql_func
+
+@app.post("/api/v1/projects", response_model=ProjectResponse)
+async def create_project(request: CreateProjectRequest, session: AsyncSession = Depends(get_db)):
+    project = Project(
+        name=request.name,
+        description=request.description
+    )
+    session.add(project)
+    await session.commit()
+    await session.refresh(project)
+    
+    logger.info(f"Created project: {project.project_id} - {project.name}")
+    
+    return ProjectResponse(
+        project_id=project.project_id,
+        name=project.name,
+        description=project.description,
+        created_at=project.created_at,
+        updated_at=project.updated_at,
+        node_count=0
+    )
+
+@app.get("/api/v1/projects", response_model=list[ProjectResponse])
+async def list_projects(session: AsyncSession = Depends(get_db)):
+    from models.db_models import Node
+    
+    # Get projects with node count
+    result = await session.execute(
+        select(
+            Project,
+            sql_func.count(Node.node_id).label("node_count")
+        )
+        .outerjoin(Node, Project.project_id == Node.project_id)
+        .group_by(Project.project_id)
+        .order_by(Project.created_at.desc())
+    )
+    
+    projects = []
+    for row in result:
+        project = row[0]
+        node_count = row[1]
+        projects.append(ProjectResponse(
+            project_id=project.project_id,
+            name=project.name,
+            description=project.description,
+            created_at=project.created_at,
+            updated_at=project.updated_at,
+            node_count=node_count
+        ))
+    
+    return projects
+
+@app.get("/api/v1/projects/{project_id}", response_model=ProjectResponse)
+async def get_project(project_id: uuid.UUID, session: AsyncSession = Depends(get_db)):
+    from models.db_models import Node
+    
+    result = await session.execute(
+        select(Project).where(Project.project_id == project_id)
+    )
+    project = result.scalar_one_or_none()
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Count nodes
+    count_result = await session.execute(
+        select(sql_func.count(Node.node_id)).where(Node.project_id == project_id)
+    )
+    node_count = count_result.scalar() or 0
+    
+    return ProjectResponse(
+        project_id=project.project_id,
+        name=project.name,
+        description=project.description,
+        created_at=project.created_at,
+        updated_at=project.updated_at,
+        node_count=node_count
+    )
+
+@app.put("/api/v1/projects/{project_id}", response_model=ProjectResponse)
+async def update_project(project_id: uuid.UUID, request: UpdateProjectRequest, session: AsyncSession = Depends(get_db)):
+    result = await session.execute(
+        select(Project).where(Project.project_id == project_id)
+    )
+    project = result.scalar_one_or_none()
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    if request.name is not None:
+        project.name = request.name
+    if request.description is not None:
+        project.description = request.description
+    
+    await session.commit()
+    await session.refresh(project)
+    
+    return ProjectResponse(
+        project_id=project.project_id,
+        name=project.name,
+        description=project.description,
+        created_at=project.created_at,
+        updated_at=project.updated_at,
+        node_count=len(project.nodes) if project.nodes else 0
+    )
+
+@app.delete("/api/v1/projects/{project_id}")
+async def delete_project(project_id: uuid.UUID, session: AsyncSession = Depends(get_db)):
+    result = await session.execute(
+        select(Project).where(Project.project_id == project_id)
+    )
+    project = result.scalar_one_or_none()
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    await session.delete(project)
+    await session.commit()
+    
+    logger.info(f"Deleted project: {project_id}")
+    
+    return {"status": "deleted", "project_id": str(project_id)}
+
+@app.get("/api/v1/projects/{project_id}/nodes/tree", response_model=list[TreeNodeResponse])
+async def get_project_tree(project_id: uuid.UUID, session: AsyncSession = Depends(get_db)):
+    # Verify project exists
+    result = await session.execute(
+        select(Project).where(Project.project_id == project_id)
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Get tree for this project only
+    tree = await crud_get_tree(session, project_id=project_id)
+    return tree
+

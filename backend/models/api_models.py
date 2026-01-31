@@ -5,7 +5,16 @@ from datetime import datetime
 
 # --- REQUEST MODELS ---
 
+class CreateProjectRequest(BaseModel):
+    name: constr(min_length=1, max_length=200)
+    description: Optional[str] = None
+
+class UpdateProjectRequest(BaseModel):
+    name: Optional[constr(min_length=1, max_length=200)] = None
+    description: Optional[str] = None
+
 class CreateNodeRequest(BaseModel):
+    project_id: Optional[UUID] = None
     parent_id: Optional[UUID] = None
     title: constr(min_length=1, max_length=200)
     node_type: str = "standard" # standard, exploration
@@ -25,8 +34,17 @@ class CopyRequest(BaseModel):
 
 # --- RESPONSE MODELS ---
 
+class ProjectResponse(BaseModel):
+    project_id: UUID
+    name: str
+    description: Optional[str]
+    created_at: datetime
+    updated_at: Optional[datetime]
+    node_count: int = 0
+
 class NodeResponse(BaseModel):
     node_id: UUID
+    project_id: Optional[UUID]
     parent_id: Optional[UUID]
     title: str
     node_type: str
@@ -60,7 +78,7 @@ class MergeResponse(BaseModel):
     source_node_id: UUID
     updated_summary: Dict[str, Any]
     conflicts: List[str]
-    knowledge_graph_updates: Dict[str, int]
+    knowledge_graph_updates: Dict[str, Any]
     source_node_status: str
 
 class DeleteResponse(BaseModel):
@@ -77,6 +95,7 @@ class TreeNodeResponse(BaseModel):
     node_type: str
     message_count: Optional[int] = 0
     has_summary: bool
+    position: Dict[str, float] = {"x": 0.0, "y": 0.0}
     children: List['TreeNodeResponse'] = []
 
 class GraphEdge(BaseModel):

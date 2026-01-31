@@ -6,7 +6,7 @@ import type { NodeData } from '../../types/node.types';
 import type { Node } from 'reactflow';
 
 const BranchModal = () => {
-  const { creatingBranchNodeId, setCreatingBranchNodeId, nodes, addNode, addToast } = useStore();
+  const { creatingBranchNodeId, setCreatingBranchNodeId, nodes, addNode, addToast, currentProjectId } = useStore();
   const [title, setTitle] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -48,6 +48,7 @@ const BranchModal = () => {
       const newNodeData = {
         title,
         parentId: parentNode.id,
+        projectId: currentProjectId,
         nodeType: 'standard' as const,
       };
 
@@ -56,15 +57,15 @@ const BranchModal = () => {
       const newNode: Node<NodeData> = {
         id: response.node_id,
         type: 'custom',
-        position: position,
+        position: response.position || position,
         data: {
           title: response.title,
-          nodeType: response.nodeType,
-          status: 'active',
-          parentId: response.parentId,
+          nodeType: response.node_type,
+          status: response.status,
+          parentId: response.parent_id,
           messageCount: 0,
           tokenCount: 0,
-          inheritedContext: response.inherited_context,
+          inheritedContext: '',
           lastActivity: response.created_at
         }
       };
