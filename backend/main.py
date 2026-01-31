@@ -380,7 +380,25 @@ async def create_project(request: CreateProjectRequest, session: AsyncSession = 
     await session.commit()
     await session.refresh(project)
     
-    logger.info(f"Created project: {project.project_id} - {project.name}")
+    # Create root node for the project
+    root_node_data = {
+        "title": f"{project.name} Root",
+        "project_id": project.project_id,
+        "parent_id": None,
+        "node_type": "standard",
+        "position_x": 0.0,
+        "position_y": 0.0,
+        "status": "active"
+    }
+    root_node = await crud_create_node(session, root_node_data)
+    await record_event(session, root_node.node_id, "NODE_CREATED", {
+        "title": root_node.title,
+        "parent_id": None,
+        "project_id": str(project.project_id),
+        "is_root": True
+    })
+    
+    logger.info(f"Created project: {project.project_id} - {project.name} with root node: {root_node.node_id}")
     
     return ProjectResponse(
         project_id=project.project_id,
@@ -388,7 +406,7 @@ async def create_project(request: CreateProjectRequest, session: AsyncSession = 
         description=project.description,
         created_at=project.created_at,
         updated_at=project.updated_at,
-        node_count=0
+        node_count=1
     )
 
 @app.get("/api/v1/projects", response_model=list[ProjectResponse])
@@ -501,7 +519,32 @@ async def get_project_tree(project_id: uuid.UUID, session: AsyncSession = Depend
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Project not found")
     
-    # Get tree for this project only
-    tree = await crud_get_tree(session, project_id=project_id)
-    return tree
+    # Get nodes for this project only
+    nodes = await crud_get_tree(session, project_id=project_id)
+    
+    # Build tree in memory (same as get_tree)
+    node_map = {}
+    roots = []
+    
+    # Create responses first
+    for n in nodes:
+        node_map[n.node_id] = TreeNodeResponse(
+            node_id=n.node_id,
+            title=n.title,
+            status=n.status,
+            node_type=n.node_type,
+            has_summary=False,
+            position={"x": n.position_x, "y": n.position_y},
+            children=[]
+        )
+        
+    # Link children to parents
+    for n in nodes:
+        if n.parent_id and n.parent_id in node_map:
+            node_map[n.parent_id].children.append(node_map[n.node_id])
+        else:
+            # Parent is None OR Parent is deleted/missing
+            roots.append(node_map[n.node_id])
+            
+    return roots
 
