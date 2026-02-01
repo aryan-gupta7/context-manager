@@ -33,12 +33,7 @@ app = FastAPI(title="Fractal Workspace Backend", version="0.1.0")
 # Add CORS middleware for frontend-backend integration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -46,7 +41,11 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def on_startup():
-    await init_db()
+    try:
+        await init_db()
+        logger.info("Database initialized successfully and connected.")
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
 
 @app.post("/api/v1/nodes", response_model=NodeResponse)
 async def create_node(request: CreateNodeRequest, session: AsyncSession = Depends(get_db)):
