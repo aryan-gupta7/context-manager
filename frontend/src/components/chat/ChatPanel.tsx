@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, CheckSquare, Minimize2, Send, Mic, 
@@ -6,11 +6,36 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import useStore from '../../store';
-import type { Message } from '../../types/node.types';
+import type { Message, NodeData } from '../../types/node.types';
 import { nodesApi } from '../../services/api/client';
+import type { Node } from 'reactflow';
+
+// Helper to get ancestor chain (parent -> grandparent -> ... -> root)
+const getAncestorChain = (nodeId: string, nodes: Node<NodeData>[]): Node<NodeData>[] => {
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+  const ancestors: Node<NodeData>[] = [];
+  
+  let currentNode = nodeMap.get(nodeId);
+  while (currentNode?.data.parentId) {
+    const parent = nodeMap.get(currentNode.data.parentId);
+    if (parent) {
+      ancestors.push(parent);
+      currentNode = parent;
+    } else {
+      break;
+    }
+  }
+  return ancestors;
+};
 
 const ChatPanel = () => {
   const { expandedNodeId, nodes, messages, setExpandedNode, addMessage: addStoreMessage } = useStore();
+  
+  // Compute ancestor chain for lineage display
+  const ancestors = useMemo(() => {
+    if (!expandedNodeId) return [];
+    return getAncestorChain(expandedNodeId, nodes);
+  }, [expandedNodeId, nodes]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [_isLoadingMessages, setIsLoadingMessages] = useState(false);
@@ -85,10 +110,13 @@ const ChatPanel = () => {
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-[#282e39]/50">
                 <div className="flex flex-wrap items-center gap-2">
                     <CornerUpLeft size={16} className="text-slate-400" />
-                    <span className="text-slate-400 text-sm font-medium">Root</span>
-                    <span className="text-slate-400 text-sm">/</span>
-                    <span className="text-slate-400 text-sm font-medium">Project Alpha</span>
-                    <span className="text-slate-400 text-sm">/</span>
+                    {/* Dynamic breadcrumb: show ancestors in reverse (root first) */}
+                    {[...ancestors].reverse().map((ancestor, index) => (
+                        <span key={ancestor.id} className="flex items-center gap-2">
+                            <span className="text-slate-400 text-sm font-medium">{ancestor.data.title}</span>
+                            <span className="text-slate-400 text-sm">/</span>
+                        </span>
+                    ))}
                     <span className="text-[#111318] dark:text-white text-sm font-bold bg-primary/10 px-2 py-0.5 rounded text-primary">
                         {node.data.title}
                     </span>
@@ -112,10 +140,28 @@ const ChatPanel = () => {
                     <div className="flex flex-col gap-1 flex-1">
                         <div className="flex items-center justify-between">
                             <p className="text-[#111318] dark:text-white text-sm font-bold uppercase tracking-wide">Lineage Context</p>
-                            <span className="text-xs text-slate-400 bg-gray-100 dark:bg-[#282e39] px-2 py-1 rounded">3 Parent Nodes</span>
+                            <span className="text-xs text-slate-400 bg-gray-100 dark:bg-[#282e39] px-2 py-1 rounded">
+                                {ancestors.length} Parent Node{ancestors.length !== 1 ? 's' : ''}
+                            </span>
                         </div>
                         <p className="text-[#5b6579] dark:text-[#9da6b9] text-sm font-normal leading-relaxed text-left">
-                            This node inherits context from <span className="text-primary font-medium">System Architecture</span>. Key constraints: Low latency, modular plugins.
+                            {ancestors.length > 0 ? (
+                                <>
+                                    This node inherits context from{' '}
+                                    {ancestors.slice(0, 3).map((ancestor, index) => (
+                                        <span key={ancestor.id}>
+                                            <span className="text-primary font-medium">{ancestor.data.title}</span>
+                                            {index < Math.min(ancestors.length, 3) - 1 && (
+                                                <span>{index === Math.min(ancestors.length, 3) - 2 ? ' and ' : ', '}</span>
+                                            )}
+                                        </span>
+                                    ))}
+                                    {ancestors.length > 3 && <span> (+{ancestors.length - 3} more)</span>}
+                                    .
+                                </>
+                            ) : (
+                                <>This is a root node with no parent context.</>
+                            )}
                         </p>
                     </div>
                 </div>
