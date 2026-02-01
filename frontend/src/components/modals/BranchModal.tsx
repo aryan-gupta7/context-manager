@@ -8,6 +8,7 @@ import type { Node } from 'reactflow';
 const BranchModal = () => {
   const { creatingBranchNodeId, setCreatingBranchNodeId, nodes, addNode, addToast, currentProjectId } = useStore();
   const [title, setTitle] = useState('');
+  const [focus, setFocus] = useState(''); // Initial message/focus for context transfer
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!creatingBranchNodeId) return null;
@@ -18,6 +19,7 @@ const BranchModal = () => {
   const handleClose = () => {
     setCreatingBranchNodeId(null);
     setTitle('');
+    setFocus('');
   };
 
   const calculatePosition = (parentId: string) => {
@@ -50,6 +52,7 @@ const BranchModal = () => {
         parentId: parentNode.id,
         projectId: currentProjectId,
         nodeType: 'standard' as const,
+        initialMessage: focus.trim() || undefined, // Context transfer
       };
 
       const response = await nodesApi.createNode(newNodeData);
@@ -121,8 +124,23 @@ const BranchModal = () => {
                     placeholder="e.g., Alternative Algorithm..."
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
                 />
+            </div>
+
+            <div className="mb-6">
+                <label className="block text-sm font-medium text-slate-400 mb-1">
+                    Focus <span className="text-slate-500 font-normal">(optional)</span>
+                </label>
+                <textarea 
+                    className="w-full bg-transparent border border-gray-200 dark:border-[#282e39] rounded-lg px-4 py-2 text-[#111318] dark:text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none"
+                    placeholder="What should this branch explore? e.g., 'Let's try a recursive approach instead...'"
+                    rows={3}
+                    value={focus}
+                    onChange={(e) => setFocus(e.target.value)}
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                    If provided, the AI will immediately start working on this focus.
+                </p>
             </div>
 
             <div className="flex justify-end gap-3">

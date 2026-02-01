@@ -18,6 +18,7 @@ class CreateNodeRequest(BaseModel):
     parent_id: Optional[UUID] = None
     title: constr(min_length=1, max_length=200)
     node_type: str = "standard" # standard, exploration
+    initial_message: Optional[str] = None
 
 class SendMessageRequest(BaseModel):
     content: str
@@ -95,9 +96,21 @@ class TreeNodeResponse(BaseModel):
     node_type: str
     message_count: Optional[int] = 0
     has_summary: bool
+    summary_text: Optional[str] = None  # Brief summary text for display
     merge_parent_id: Optional[UUID] = None  # Secondary parent from merge operations
     position: Dict[str, float] = {"x": 0.0, "y": 0.0}
     children: List['TreeNodeResponse'] = []
+
+class InheritedContextResponse(BaseModel):
+    """Response model for inherited context from parent lineage"""
+    node_id: UUID
+    facts: List[Dict[str, Any]] = []
+    decisions: List[Dict[str, Any]] = []
+    open_questions: List[str] = []
+    key_entities: List[str] = []
+    lineage_depth: int = 0
+    parent_title: Optional[str] = None
+    parent_node_id: Optional[UUID] = None
 
 class GraphEdge(BaseModel):
     from_entity: str

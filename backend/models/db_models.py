@@ -32,6 +32,8 @@ class Node(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     created_by = Column(String, nullable=True)
     metadata_ = Column("metadata", JSON, default={})
+    # Frozen snapshot of parent context at branch creation - ensures important details aren't lost
+    inherited_context = Column(JSON, default=None, nullable=True)
 
     project = relationship("Project", back_populates="nodes")
     parent = relationship("Node", remote_side=[node_id], foreign_keys=[parent_id], backref="children")

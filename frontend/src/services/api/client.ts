@@ -75,6 +75,11 @@ export const nodesApi = {
       payload.project_id = data.projectId;
     }
     
+    // Include initial_message for context transfer (triggers LLM response on backend)
+    if (data.initialMessage && data.initialMessage.trim() !== '') {
+      payload.initial_message = data.initialMessage;
+    }
+    
     const response = await api.post('/nodes', payload);
     return response.data;
   },

@@ -56,6 +56,12 @@ async def create_node(request: CreateNodeRequest, session: AsyncSession = Depend
     # Position calculation
     pos_x, pos_y = await calculate_position(session, request.parent_id)
 
+    # CONTEXT SNAPSHOT: Capture parent's essential context for persistent inheritance
+    inherited_context = None
+    if request.parent_id:
+        inherited_context = await context_manager.snapshot_parent_context(session, request.parent_id)
+        logger.info(f"Created context snapshot for new branch: {len(inherited_context.get('facts', []))} facts, {len(inherited_context.get('decisions', []))} decisions")
+
     node_data = {
         "title": request.title,
         "project_id": request.project_id,
@@ -63,7 +69,8 @@ async def create_node(request: CreateNodeRequest, session: AsyncSession = Depend
         "node_type": request.node_type,
         "position_x": pos_x,
         "position_y": pos_y,
-        "status": "active"
+        "status": "active",
+        "inherited_context": inherited_context  # Frozen parent context snapshot
     }
     
     node = await crud_create_node(session, node_data)
@@ -72,6 +79,27 @@ async def create_node(request: CreateNodeRequest, session: AsyncSession = Depend
         "parent_id": str(node.parent_id) if node.parent_id else None,
         "project_id": str(node.project_id) if node.project_id else None
     })
+    
+    # Handle initial message (Context Transfer)
+    if request.initial_message:
+        # 1. User Message
+        user_msg_token_count = estimate_token_count(request.initial_message)
+        await create_message(session, node.node_id, "user", request.initial_message, user_msg_token_count)
+        await record_event(session, node.node_id, "MESSAGE_ADDED", {"role": "user", "context": "initial_focus"})
+
+        # 2. Build Context
+        chat_ctx = await context_manager.build_chat_context(session, node.node_id)
+
+        # 3. Call LLM
+        if node.node_type == "exploration":
+            response_text, _ = await llm_service.exploration_chat(chat_ctx["system_prompt"], request.initial_message)
+        else:
+            response_text = await llm_service.chat(chat_ctx["system_prompt"], request.initial_message)
+
+        # 4. Assistant Message
+        asst_token_count = estimate_token_count(response_text)
+        await create_message(session, node.node_id, "assistant", response_text, asst_token_count)
+        await record_event(session, node.node_id, "MESSAGE_ADDED", {"role": "assistant", "context": "initial_response"})
     
     return NodeResponse(
         node_id=node.node_id,
@@ -379,6 +407,52 @@ async def get_graph_endpoint(node_id: uuid.UUID, session: AsyncSession = Depends
         entities=list(entities),
         relations=graph_edges
     )
+
+@app.get("/api/v1/nodes/{node_id}/context")
+async def get_inherited_context(node_id: uuid.UUID, session: AsyncSession = Depends(get_db)):
+    """
+    Get the inherited context for a node.
+    Returns the frozen context snapshot stored at node creation,
+    plus any computed lineage context if the snapshot is missing.
+    """
+    node = await get_node_by_id_or_404(session, node_id)
+    
+    # If node has stored inherited_context, use it
+    if node.inherited_context:
+        ctx = node.inherited_context
+        return {
+            "node_id": str(node_id),
+            "source": "stored_snapshot",
+            "facts": ctx.get("facts", []),
+            "decisions": ctx.get("decisions", []),
+            "open_questions": ctx.get("open_questions", []),
+            "key_entities": ctx.get("key_entities", []),
+            "lineage_depth": ctx.get("lineage_depth", 0),
+            "parent_title": ctx.get("parent_title"),
+            "parent_node_id": ctx.get("parent_node_id")
+        }
+    
+    # Fallback: compute context dynamically
+    if node.parent_id:
+        ctx = await context_manager.snapshot_parent_context(session, node.parent_id)
+        if ctx:
+            return {
+                "node_id": str(node_id),
+                "source": "computed",
+                **ctx
+            }
+    
+    return {
+        "node_id": str(node_id),
+        "source": "none",
+        "facts": [],
+        "decisions": [],
+        "open_questions": [],
+        "key_entities": [],
+        "lineage_depth": 0,
+        "parent_title": None,
+        "parent_node_id": None
+    }
 
 # ========================
 # PROJECT ENDPOINTS
