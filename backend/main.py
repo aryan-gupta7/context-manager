@@ -536,10 +536,6 @@ async def get_project_tree(project_id: uuid.UUID, session: AsyncSession = Depend
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Project not found")
     
-    # Get nodes for this project only
-    nodes = await crud_get_tree(session, project_id=project_id)
-    
-    # Build tree in memory (same as get_tree)
     # Get nodes for this project
     nodes = await crud_get_tree(session, project_id=project_id)
     
@@ -548,17 +544,15 @@ async def get_project_tree(project_id: uuid.UUID, session: AsyncSession = Depend
     for n in nodes:
         summary = await get_latest_summary(session, n.node_id)
         if summary:
-            # Extract summary text from the summary JSON
             summary_json = summary.summary
             if isinstance(summary_json, dict):
-                # Try to get a meaningful text from the summary
                 facts = summary_json.get("FACTS", [])
                 if isinstance(facts, list) and facts:
-                    node_summaries[n.node_id] = "; ".join(str(f) for f in facts[:3])  # First 3 facts
+                    node_summaries[n.node_id] = "; ".join(str(f) for f in facts[:3])
                 else:
                     node_summaries[n.node_id] = str(summary_json.get("summary", ""))[:200]
     
-    # Build tree in memory (same logic as /api/v1/nodes/tree)
+    # Build tree in memory
     node_map = {}
     roots = []
     
@@ -570,7 +564,6 @@ async def get_project_tree(project_id: uuid.UUID, session: AsyncSession = Depend
             title=n.title,
             status=n.status,
             node_type=n.node_type,
-            has_summary=False,
             has_summary=n.node_id in node_summaries,
             summary_text=summary_text,
             position={"x": n.position_x, "y": n.position_y},
@@ -582,7 +575,6 @@ async def get_project_tree(project_id: uuid.UUID, session: AsyncSession = Depend
         if n.parent_id and n.parent_id in node_map:
             node_map[n.parent_id].children.append(node_map[n.node_id])
         else:
-            # Parent is None OR Parent is deleted/missing
             roots.append(node_map[n.node_id])
             
     return roots
