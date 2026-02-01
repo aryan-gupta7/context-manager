@@ -11,10 +11,12 @@ class Settings(BaseSettings):
     # Change the FROM line in the Modelfiles, not these strings.
     MODEL_MAIN_REASONER: str = "main-reasoner"
     MODEL_GRAPH_BUILDER: str = "graph-builder"
+    MODEL_BRANCH_JUDGE: str = "branch-judge"
 
     # Context window limits (must match Modelfile num_ctx)
     CTX_MAIN_REASONER: int = 8192
     CTX_GRAPH_BUILDER: int = 4096
+    CTX_BRANCH_JUDGE: int = 4096
 
     # How many recent messages the chat agent sees
     CHAT_RECENT_MESSAGES: int = 10
@@ -28,4 +30,5 @@ settings = Settings()
 DEVICE_URLS = {
     settings.MODEL_MAIN_REASONER: settings.ollama_device_a_url,
     settings.MODEL_GRAPH_BUILDER: settings.ollama_device_b_url,
+    settings.MODEL_BRANCH_JUDGE: settings.ollama_device_a_url,
 }

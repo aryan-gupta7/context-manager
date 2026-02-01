@@ -19,6 +19,12 @@ export interface Message {
   content: string;
   timestamp: string;
   metadata?: Record<string, any>;
+  branchSuggestion?: {
+    should_branch: boolean;
+    confidence: number;
+    reason?: string;
+    suggested_branches: { title: string; focus: string }[];
+  } | null;
 }
 
 export interface CreateNodeRequest {

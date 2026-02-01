@@ -2,18 +2,33 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, CheckSquare, Minimize2, Send, Mic, 
-  History, Bot, CornerUpLeft
+  History, Bot, CornerUpLeft, GitBranch, Loader2
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import useStore from '../../store';
 import type { Message } from '../../types/node.types';
+import type { Node } from 'reactflow';
+import type { NodeData } from '../../types/node.types';
 import { nodesApi } from '../../services/api/client';
 
 const ChatPanel = () => {
-  const { expandedNodeId, nodes, messages, setExpandedNode, addMessage: addStoreMessage } = useStore();
+  const { 
+    expandedNodeId, 
+    nodes, 
+    messages, 
+    setExpandedNode, 
+    addMessage: addStoreMessage,
+    branchSuggestion,
+    branchSuggestionNodeId,
+    setBranchSuggestion,
+    addNode,
+    addToast
+  } = useStore();
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [_isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isCreatingBranches, setIsCreatingBranches] = useState(false);
+  const [selectedBranches, setSelectedBranches] = useState<number[]>([]);
 
   const node = nodes.find(n => n.id === expandedNodeId);
 
@@ -64,10 +79,88 @@ const ChatPanel = () => {
     try {
         const response = await nodesApi.sendMessage(node.id, userMsg.content);
         addStoreMessage(node.id, response);
+        
+        // Check for branch suggestion from AI
+        if (response.branchSuggestion?.should_branch) {
+            setBranchSuggestion(response.branchSuggestion, node.id);
+        }
     } finally {
         setIsTyping(false);
     }
   };
+
+  const handleAcceptBranch = async () => {
+    if (!branchSuggestion || !branchSuggestionNodeId || selectedBranches.length === 0) return;
+    
+    // Get only selected branches
+    const branchesToCreate = selectedBranches.map(i => branchSuggestion.suggested_branches[i]);
+    
+    setIsCreatingBranches(true);
+    try {
+      const response = await nodesApi.autoBranch(
+        branchSuggestionNodeId, 
+        branchesToCreate
+      );
+      
+      const parentNode = nodes.find(n => n.id === branchSuggestionNodeId);
+      
+      // Add created nodes to store
+      response.created_nodes.forEach((nodeData: any, index: number) => {
+        const newNode: Node<NodeData> = {
+          id: nodeData.node_id,
+          type: 'custom',
+          position: nodeData.position || { 
+            x: (parentNode?.position.x || 0) + (index * 350), 
+            y: (parentNode?.position.y || 0) + 400 
+          },
+          data: {
+            title: nodeData.title,
+            nodeType: nodeData.node_type,
+            status: nodeData.status,
+            parentId: nodeData.parent_id,
+            messageCount: 1,
+            tokenCount: 0,
+            inheritedContext: '',
+            lastActivity: nodeData.created_at
+          }
+        };
+        addNode(newNode);
+      });
+      
+      addToast({ 
+        type: 'success', 
+        message: `Created ${response.created_nodes.length} branch${response.created_nodes.length > 1 ? 'es' : ''}` 
+      });
+      setBranchSuggestion(null);
+    } catch (error) {
+      console.error('Failed to create branches:', error);
+      addToast({ type: 'error', message: 'Failed to create branches' });
+    } finally {
+      setIsCreatingBranches(false);
+    }
+  };
+
+  const handleDeclineBranch = () => {
+    setBranchSuggestion(null);
+    setSelectedBranches([]);
+  };
+
+  const toggleBranchSelection = (index: number) => {
+    setSelectedBranches(prev => 
+      prev.includes(index) 
+        ? prev.filter(i => i !== index)
+        : [...prev, index]
+    );
+  };
+
+  const selectAllBranches = () => {
+    if (branchSuggestion) {
+      setSelectedBranches(branchSuggestion.suggested_branches.map((_, i) => i));
+    }
+  };
+
+  // Check if current node has an active branch suggestion
+  const showBranchSuggestion = branchSuggestion && branchSuggestionNodeId === expandedNodeId;
 
   return (
     <AnimatePresence>
@@ -162,6 +255,90 @@ const ChatPanel = () => {
                 <div className="flex items-center gap-2 text-slate-500 text-sm italic ml-14">
                     <span className="animate-pulse">AI is thinking...</span>
                 </div>
+            )}
+
+            {/* Inline Branch Suggestion */}
+            {showBranchSuggestion && (
+                <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-start gap-3"
+                >
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-purple-500 text-white shrink-0">
+                        <GitBranch size={18} />
+                    </div>
+                    <div className="flex flex-col gap-3 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-2xl rounded-tl-none p-4 max-w-[80%]">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm font-bold text-purple-400">Branch Suggestion</span>
+                                <span className="text-xs text-slate-500">({Math.round(branchSuggestion.confidence * 100)}% confidence)</span>
+                            </div>
+                            <button 
+                                onClick={selectAllBranches}
+                                className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
+                            >
+                                Select all
+                            </button>
+                        </div>
+                        <p className="text-sm text-slate-300">{branchSuggestion.reason}</p>
+                        
+                        <div className="space-y-2">
+                            {branchSuggestion.suggested_branches.map((branch, i) => (
+                                <div 
+                                    key={i} 
+                                    onClick={() => toggleBranchSelection(i)}
+                                    className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-all ${
+                                        selectedBranches.includes(i) 
+                                            ? 'bg-purple-500/20 border border-purple-500/50' 
+                                            : 'bg-white/5 border border-transparent hover:bg-white/10'
+                                    }`}
+                                >
+                                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${
+                                        selectedBranches.includes(i) 
+                                            ? 'bg-purple-500 border-purple-500' 
+                                            : 'border-slate-500'
+                                    }`}>
+                                        {selectedBranches.includes(i) && (
+                                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        )}
+                                    </div>
+                                    <div className="flex-1">
+                                        <span className="text-sm font-medium text-white">{branch.title}</span>
+                                        <p className="text-xs text-slate-400 mt-0.5">{branch.focus}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        
+                        <div className="flex items-center gap-3 pt-2">
+                            <button
+                                onClick={handleDeclineBranch}
+                                className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors"
+                            >
+                                Dismiss
+                            </button>
+                            <button
+                                onClick={handleAcceptBranch}
+                                disabled={isCreatingBranches || selectedBranches.length === 0}
+                                className="px-5 py-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-purple-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                                {isCreatingBranches ? (
+                                    <>
+                                        <Loader2 size={14} className="animate-spin" />
+                                        Creating...
+                                    </>
+                                ) : (
+                                    <>
+                                        <GitBranch size={14} />
+                                        Branch ({selectedBranches.length})
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </motion.div>
             )}
         </div>
 

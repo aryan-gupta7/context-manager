@@ -32,6 +32,9 @@ class DeleteRequest(BaseModel):
 class CopyRequest(BaseModel):
     new_parent_id: Optional[UUID] = None
 
+class AutoBranchRequest(BaseModel):
+    branches: List[Dict[str, str]]  # List of {"title": ..., "focus": ...}
+
 # --- RESPONSE MODELS ---
 
 class ProjectResponse(BaseModel):
@@ -54,6 +57,16 @@ class NodeResponse(BaseModel):
     created_by: Optional[str]
     metadata: Dict[str, Any]
 
+class BranchSuggestion(BaseModel):
+    title: str
+    focus: str
+
+class BranchSuggestionResponse(BaseModel):
+    should_branch: bool
+    confidence: float
+    reason: Optional[str] = None
+    suggested_branches: List[BranchSuggestion] = []
+
 class MessageResponse(BaseModel):
     message_id: UUID
     node_id: UUID
@@ -64,6 +77,7 @@ class MessageResponse(BaseModel):
     metadata: Dict[str, Any]
     agent_used: Optional[str] = None
     fallback_from: Optional[str] = None
+    branch_suggestion: Optional[BranchSuggestionResponse] = None
 
 class SummarizeResponse(BaseModel):
     summary_id: UUID
@@ -110,6 +124,10 @@ class GraphResponse(BaseModel):
     node_id: UUID
     entities: List[str]
     relations: List[GraphEdge]
+
+class AutoBranchResponse(BaseModel):
+    parent_node_id: UUID
+    created_nodes: List[NodeResponse]
 
 # Recursive model update
 TreeNodeResponse.model_rebuild()

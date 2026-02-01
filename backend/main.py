@@ -10,7 +10,9 @@ from models.api_models import (
     DeleteRequest, DeleteResponse,
     CopyRequest,
     TreeNodeResponse, GraphResponse, GraphEdge,
-    CreateProjectRequest, UpdateProjectRequest, ProjectResponse
+    CreateProjectRequest, UpdateProjectRequest, ProjectResponse,
+    BranchSuggestionResponse, BranchSuggestion,
+    AutoBranchRequest, AutoBranchResponse
 )
 from crud.nodes import create_node as crud_create_node, get_node_by_id_or_404, get_tree as crud_get_tree, update_node_status, calculate_position, get_node_lineage
 from crud.messages import create_message, get_messages as crud_get_messages
@@ -120,6 +122,41 @@ async def send_message(node_id: uuid.UUID, request: SendMessageRequest, session:
     asst_msg = await create_message(session, node_id, "assistant", response_text, asst_token_count)
     await record_event(session, node_id, "MESSAGE_ADDED", {"role": "assistant", "message_id": str(asst_msg.message_id)})
 
+    # 5. Judge for branch need
+    branch_suggestion = None
+    try:
+        # Build recent conversation for judge
+        recent_msgs = await crud_get_messages(session, node_id, limit=6)
+        conversation = "\n".join([f"{m.role}: {m.content[:500]}" for m in recent_msgs])
+        
+        judge_result = await llm_service.judge_branch_need(conversation)
+        logger.info(f"Branch judge result for node {node_id}: {judge_result}")
+        
+        # Handle different field names that LLM might return
+        should_branch = judge_result.get("should_branch") or judge_result.get("branching_point") or judge_result.get("has_reached_natural_branching_point", False)
+        confidence = judge_result.get("confidence", 0.8 if should_branch else 0.0)  # Default 0.8 if branching detected but no confidence
+        raw_branches = judge_result.get("suggested_branches") or judge_result.get("topics") or judge_result.get("distinct_topics_to_explore", [])
+        
+        if should_branch and confidence > 0.7 and len(raw_branches) > 0:
+            suggested_branches = []
+            for b in raw_branches:
+                # Handle different field names: title/name, focus/description
+                title = b.get("title") or b.get("name") or b.get("topic", "Untitled")
+                focus = b.get("focus") or b.get("description") or ""
+                suggested_branches.append(BranchSuggestion(title=title, focus=focus))
+            
+            branch_suggestion = BranchSuggestionResponse(
+                should_branch=True,
+                confidence=confidence,
+                reason=judge_result.get("reason", "Multiple topics detected"),
+                suggested_branches=suggested_branches
+            )
+            logger.info(f"Branch suggestion generated for node {node_id}: {len(suggested_branches)} branches")
+        else:
+            logger.info(f"No branch suggested: should_branch={should_branch}, confidence={confidence}, branches={len(raw_branches)}")
+    except Exception as e:
+        logger.warning(f"Branch judge failed for node {node_id}: {e}")
+
     return MessageResponse(
         message_id=asst_msg.message_id,
         node_id=asst_msg.node_id,
@@ -129,7 +166,8 @@ async def send_message(node_id: uuid.UUID, request: SendMessageRequest, session:
         token_count=asst_msg.token_count,
         metadata=asst_msg.metadata_,
         agent_used=agent_used,
-        fallback_from=fallback_from
+        fallback_from=fallback_from,
+        branch_suggestion=branch_suggestion
     )
 
 @app.post("/api/v1/nodes/{node_id}/summarize", response_model=SummarizeResponse)
@@ -289,6 +327,76 @@ async def copy_node(node_id: uuid.UUID, request: CopyRequest, session: AsyncSess
         created_at=new_node.created_at,
         created_by=new_node.created_by,
         metadata=new_node.metadata_ or {}
+    )
+
+@app.post("/api/v1/nodes/{node_id}/auto-branch", response_model=AutoBranchResponse)
+async def auto_branch(node_id: uuid.UUID, request: AutoBranchRequest, session: AsyncSession = Depends(get_db)):
+    """Create multiple branches from suggested topics and seed each with a deep-dive prompt."""
+    parent = await get_node_by_id_or_404(session, node_id)
+    
+    if parent.status != "active":
+        raise HTTPException(status_code=400, detail="Parent node is not active")
+    
+    created_nodes = []
+    
+    for i, branch in enumerate(request.branches):
+        branch_title = branch.get("title", f"Branch {i+1}")
+        branch_focus = branch.get("focus", "Explore this topic")
+        
+        # Calculate position (offset each branch horizontally)
+        pos_x, pos_y = await calculate_position(session, parent.node_id)
+        pos_x += i * 350  # Offset each branch
+        
+        # Create the new node
+        node = await crud_create_node(session, {
+            "title": branch_title,
+            "project_id": parent.project_id,
+            "parent_id": parent.node_id,
+            "node_type": "standard",
+            "position_x": pos_x,
+            "position_y": pos_y,
+            "status": "active"
+        })
+        
+        await record_event(session, node.node_id, "NODE_CREATED", {
+            "title": node.title,
+            "parent_id": str(parent.node_id),
+            "project_id": str(parent.project_id) if parent.project_id else None,
+            "auto_branch": True
+        })
+        
+        # Seed with the focus as user input
+        seed_prompt = branch_focus
+        seed_token_count = estimate_token_count(seed_prompt)
+        await create_message(session, node.node_id, "user", seed_prompt, seed_token_count)
+        
+        # Get AI response to the seed prompt
+        try:
+            chat_ctx = await context_manager.build_chat_context(session, node.node_id)
+            response = await llm_service.chat(chat_ctx["system_prompt"], seed_prompt)
+            response_token_count = estimate_token_count(response)
+            await create_message(session, node.node_id, "assistant", response, response_token_count)
+        except Exception as e:
+            logger.error(f"Failed to seed branch {node.node_id} with AI response: {e}")
+        
+        created_nodes.append(NodeResponse(
+            node_id=node.node_id,
+            project_id=node.project_id,
+            parent_id=node.parent_id,
+            title=node.title,
+            node_type=node.node_type,
+            status=node.status,
+            position={"x": node.position_x, "y": node.position_y},
+            created_at=node.created_at,
+            created_by=node.created_by,
+            metadata=node.metadata_ or {}
+        ))
+    
+    logger.info(f"Auto-branched node {node_id} into {len(created_nodes)} branches")
+    
+    return AutoBranchResponse(
+        parent_node_id=node_id,
+        created_nodes=created_nodes
     )
 
 @app.get("/api/v1/nodes/tree", response_model=list[TreeNodeResponse])

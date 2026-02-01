@@ -86,7 +86,8 @@ export const nodesApi = {
       role: response.data.role,
       content: response.data.content,
       timestamp: response.data.timestamp,
-      metadata: response.data.metadata
+      metadata: response.data.metadata,
+      branchSuggestion: response.data.branch_suggestion || null
     };
   },
 
@@ -131,6 +132,11 @@ export const nodesApi = {
 
   getGraph: async (nodeId: string) => {
     const response = await api.get(`/nodes/${nodeId}/graph`);
+    return response.data;
+  },
+
+  autoBranch: async (nodeId: string, branches: { title: string; focus: string }[]): Promise<any> => {
+    const response = await api.post(`/nodes/${nodeId}/auto-branch`, { branches });
     return response.data;
   },
 };

@@ -3,6 +3,14 @@ import { type Node, type Edge, type Connection, addEdge, applyNodeChanges, apply
 import type { NodeData, Message } from '../types/node.types';
 import { nodesApi, projectsApi, type Project } from '../services/api/client';
 
+// Branch Suggestion types
+export interface BranchSuggestionData {
+  should_branch: boolean;
+  confidence: number;
+  reason?: string;
+  suggested_branches: { title: string; focus: string }[];
+}
+
 interface AppState {
   // Canvas State
   nodes: Node<NodeData>[];
@@ -23,6 +31,10 @@ interface AppState {
   messages: Record<string, Message[]>; // Chat messages per node
   loading: Record<string, boolean>; // generic loading states by key
   toasts: Array<{ id: string; type: 'success' | 'error' | 'info'; message: string }>;
+  
+  // Branch Suggestion State
+  branchSuggestion: BranchSuggestionData | null;
+  branchSuggestionNodeId: string | null;
 
   // Project Actions
   fetchProjects: () => Promise<void>;
@@ -48,6 +60,9 @@ interface AppState {
   setHighlightedPath: (path: string[]) => void;
   
   addMessage: (nodeId: string, message: Message) => void;
+  
+  // Branch Suggestion Actions
+  setBranchSuggestion: (suggestion: BranchSuggestionData | null, nodeId?: string | null) => void;
   
   addToast: (toast: { type: 'success' | 'error' | 'info'; message: string }) => void;
   removeToast: (id: string) => void;
@@ -102,6 +117,10 @@ const useStore = create<AppState>((set, get) => ({
   messages: {},
   loading: {},
   toasts: [],
+  
+  // Branch Suggestion State
+  branchSuggestion: null,
+  branchSuggestionNodeId: null,
 
   // Project Actions
   fetchProjects: async () => {
@@ -305,6 +324,13 @@ const useStore = create<AppState>((set, get) => ({
             [nodeId]: [...(state.messages[nodeId] || []), message]
         }
     }));
+  },
+
+  setBranchSuggestion: (suggestion, nodeId = null) => {
+    set({ 
+      branchSuggestion: suggestion, 
+      branchSuggestionNodeId: suggestion ? nodeId : null 
+    });
   },
 
   addToast: ({ type, message }) => {
