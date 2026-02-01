@@ -14,7 +14,7 @@ from models.api_models import (
 )
 from crud.nodes import create_node as crud_create_node, get_node_by_id_or_404, get_tree as crud_get_tree, update_node_status, calculate_position, get_node_lineage
 from crud.messages import create_message, get_messages as crud_get_messages
-from crud.summaries import create_summary
+from crud.summaries import create_summary, get_latest_summary
 from services.context_manager import context_manager
 from services.llm_service import llm_service
 from services.event_processor import record_event
@@ -295,18 +295,35 @@ async def copy_node(node_id: uuid.UUID, request: CopyRequest, session: AsyncSess
 async def get_tree(session: AsyncSession = Depends(get_db)):
     nodes = await crud_get_tree(session)
     
+    # Fetch summaries for all nodes
+    node_summaries = {}
+    for n in nodes:
+        summary = await get_latest_summary(session, n.node_id)
+        if summary:
+            # Extract summary text from the summary JSON
+            summary_json = summary.summary
+            if isinstance(summary_json, dict):
+                # Try to get a meaningful text from the summary
+                facts = summary_json.get("FACTS", [])
+                if isinstance(facts, list) and facts:
+                    node_summaries[n.node_id] = "; ".join(str(f) for f in facts[:3])  # First 3 facts
+                else:
+                    node_summaries[n.node_id] = str(summary_json.get("summary", ""))[:200]
+    
     # Build tree in memory
     node_map = {}
     roots = []
     
     # Create responses first
     for n in nodes:
+        summary_text = node_summaries.get(n.node_id)
         node_map[n.node_id] = TreeNodeResponse(
             node_id=n.node_id,
             title=n.title,
             status=n.status,
             node_type=n.node_type,
-            has_summary=False, # Optimisation needed
+            has_summary=n.node_id in node_summaries,
+            summary_text=summary_text,
             position={"x": n.position_x, "y": n.position_y},
             children=[]
         )
@@ -523,17 +540,39 @@ async def get_project_tree(project_id: uuid.UUID, session: AsyncSession = Depend
     nodes = await crud_get_tree(session, project_id=project_id)
     
     # Build tree in memory (same as get_tree)
+    # Get nodes for this project
+    nodes = await crud_get_tree(session, project_id=project_id)
+    
+    # Fetch summaries for all nodes
+    node_summaries = {}
+    for n in nodes:
+        summary = await get_latest_summary(session, n.node_id)
+        if summary:
+            # Extract summary text from the summary JSON
+            summary_json = summary.summary
+            if isinstance(summary_json, dict):
+                # Try to get a meaningful text from the summary
+                facts = summary_json.get("FACTS", [])
+                if isinstance(facts, list) and facts:
+                    node_summaries[n.node_id] = "; ".join(str(f) for f in facts[:3])  # First 3 facts
+                else:
+                    node_summaries[n.node_id] = str(summary_json.get("summary", ""))[:200]
+    
+    # Build tree in memory (same logic as /api/v1/nodes/tree)
     node_map = {}
     roots = []
     
     # Create responses first
     for n in nodes:
+        summary_text = node_summaries.get(n.node_id)
         node_map[n.node_id] = TreeNodeResponse(
             node_id=n.node_id,
             title=n.title,
             status=n.status,
             node_type=n.node_type,
             has_summary=False,
+            has_summary=n.node_id in node_summaries,
+            summary_text=summary_text,
             position={"x": n.position_x, "y": n.position_y},
             children=[]
         )
