@@ -23,6 +23,7 @@ class Node(Base):
     node_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id = Column(UUID(as_uuid=True), ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=True)
     parent_id = Column(UUID(as_uuid=True), ForeignKey("nodes.node_id"), nullable=True)
+    merge_parent_id = Column(UUID(as_uuid=True), ForeignKey("nodes.node_id"), nullable=True)  # Secondary parent from merge
     title = Column(String, nullable=False)
     node_type = Column(String, default="standard", nullable=False) # Check constraint handled by validator or DB enum if strict
     status = Column(String, default="active", nullable=False)
@@ -33,7 +34,7 @@ class Node(Base):
     metadata_ = Column("metadata", JSON, default={})
 
     project = relationship("Project", back_populates="nodes")
-    parent = relationship("Node", remote_side=[node_id], backref="children")
+    parent = relationship("Node", remote_side=[node_id], foreign_keys=[parent_id], backref="children")
     messages = relationship("Message", back_populates="node", cascade="all, delete-orphan")
     summaries = relationship("NodeSummary", back_populates="node")
     events = relationship("NodeEvent", back_populates="node")

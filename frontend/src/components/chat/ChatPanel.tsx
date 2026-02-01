@@ -4,6 +4,7 @@ import {
   X, CheckSquare, Minimize2, Send, Mic, 
   History, Bot, CornerUpLeft
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import useStore from '../../store';
 import type { Message } from '../../types/node.types';
 import { nodesApi } from '../../services/api/client';
@@ -142,9 +143,15 @@ const ChatPanel = () => {
                             </div>
                          )}
                         <div className={`p-4 rounded-2xl shadow-md text-left ${msg.role === 'user' ? 'rounded-tr-sm bg-primary text-white' : 'rounded-tl-none bg-gray-100 dark:bg-[#1c222e] text-[#111318] dark:text-[#e0e2e7]'}`}>
-                            <p className="text-sm font-normal leading-relaxed font-body whitespace-pre-wrap">
-                                {msg.content}
-                            </p>
+                            {msg.role === 'user' ? (
+                                <p className="text-sm font-normal leading-relaxed font-body whitespace-pre-wrap">
+                                    {msg.content}
+                                </p>
+                            ) : (
+                                <div className="prose prose-sm dark:prose-invert max-w-none prose-pre:bg-[#111318] prose-pre:p-3 prose-pre:rounded-lg prose-code:bg-[#282e39] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-primary prose-code:before:content-none prose-code:after:content-none">
+                                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

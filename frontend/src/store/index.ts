@@ -57,6 +57,7 @@ interface AppState {
 const buildEdgesFromNodes = (nodes: Node<NodeData>[]): Edge[] => {
   const edges: Edge[] = [];
   for (const node of nodes) {
+    // Primary parent edge
     if (node.data.parentId) {
       edges.push({
         id: `e-${node.data.parentId}-${node.id}`,
@@ -65,6 +66,17 @@ const buildEdgesFromNodes = (nodes: Node<NodeData>[]): Edge[] => {
         type: 'context',
         animated: false,
         style: { strokeWidth: 1.5 }
+      });
+    }
+    // Secondary parent edge (from merge)
+    if (node.data.mergeParentId) {
+      edges.push({
+        id: `e-merge-${node.data.mergeParentId}-${node.id}`,
+        source: node.data.mergeParentId,
+        target: node.id,
+        type: 'context',
+        animated: false,
+        style: { strokeWidth: 1.5, strokeDasharray: '5,5' } // Dashed for merge edges
       });
     }
   }

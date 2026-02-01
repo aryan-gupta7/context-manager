@@ -77,7 +77,7 @@ const CustomNode = ({ id, data, selected }: NodeProps<NodeData> & { id: string }
         <div 
           className="h-32 bg-cover bg-center relative" 
           style={{
-            backgroundImage: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, #111318 100%), url("https://lh3.googleusercontent.com/aida-public/AB6AXuCrAGlIUa1xQYiLqSpW1o-Nsxo2ewPU5SBoKTqERaroJpLK3Ez3MrwDBdc2Vv6UJEFAK8OsIT1ZKulbwP2UePyxJsa8FADvaaGF24jypFMvqXd-i3eqkouAmlzBwLrTNzPe89ekPedye6qpmHWj1SXjrLj8VZB2p8oMoph84W9tE1D5h4IlQq0Ql5Ai604-PKf0SaVgGH8fYOJonMXDQRYuAO90PTwZqAJLfkUP_U6R6hiLemZN8nfwg3ETSAX3IwRo3sgD_R0aTjys")'
+            backgroundImage: 'linear-gradient(180deg, rgba(19, 91, 236, 0.3) 0%, rgba(17, 19, 24, 0.9) 50%, #111318 100%), radial-gradient(circle at 30% 20%, rgba(19, 91, 236, 0.4) 0%, transparent 50%), radial-gradient(circle at 70% 60%, rgba(76, 201, 240, 0.2) 0%, transparent 40%)'
           }}
         >
           <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-sm rounded-full px-2 py-1 text-[10px] text-white font-mono border border-white/10">ROOT</div>

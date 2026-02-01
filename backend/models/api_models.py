@@ -95,6 +95,7 @@ class TreeNodeResponse(BaseModel):
     node_type: str
     message_count: Optional[int] = 0
     has_summary: bool
+    merge_parent_id: Optional[UUID] = None  # Secondary parent from merge operations
     position: Dict[str, float] = {"x": 0.0, "y": 0.0}
     children: List['TreeNodeResponse'] = []
 

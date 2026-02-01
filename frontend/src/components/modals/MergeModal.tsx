@@ -7,7 +7,7 @@ import type { Node } from 'reactflow';
 import type { NodeData } from '../../types/node.types';
 
 const MergeModal = () => {
-  const { mergingNodeId, setMergingNodeId, nodes, addToast } = useStore();
+  const { mergingNodeId, setMergingNodeId, nodes, addToast, currentProjectId } = useStore();
   const [description, setDescription] = useState('');
   const [selectedTargetId, setSelectedTargetId] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -52,7 +52,7 @@ const MergeModal = () => {
       const newNodeData = {
           title: `Merge: ${node.data.title} & ${targetNode.data.title}`,
           parentId: node.id, // Primary Parent (Source)
-          mergeParentId: targetNode.id, // Secondary Parent (Target)
+          projectId: currentProjectId, // Associate with current project
           nodeType: 'standard' as const,
       };
 

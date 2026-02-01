@@ -324,6 +324,7 @@ async def get_tree(session: AsyncSession = Depends(get_db)):
             node_type=n.node_type,
             has_summary=n.node_id in node_summaries,
             summary_text=summary_text,
+            merge_parent_id=n.merge_parent_id,
             position={"x": n.position_x, "y": n.position_y},
             children=[]
         )
@@ -402,7 +403,7 @@ async def create_project(request: CreateProjectRequest, session: AsyncSession = 
         "title": f"{project.name} Root",
         "project_id": project.project_id,
         "parent_id": None,
-        "node_type": "standard",
+        "node_type": "root",
         "position_x": 0.0,
         "position_y": 0.0,
         "status": "active"
@@ -566,6 +567,7 @@ async def get_project_tree(project_id: uuid.UUID, session: AsyncSession = Depend
             node_type=n.node_type,
             has_summary=n.node_id in node_summaries,
             summary_text=summary_text,
+            merge_parent_id=n.merge_parent_id,
             position={"x": n.position_x, "y": n.position_y},
             children=[]
         )

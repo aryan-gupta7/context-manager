@@ -21,6 +21,7 @@ interface TreeNodeResponse {
     children: TreeNodeResponse[];
     position: { x: number; y: number };
     message_count?: number;
+    merge_parent_id?: string | null;  // Secondary parent from merge operations
 }
 
 export const nodesApi = {
@@ -40,6 +41,7 @@ export const nodesApi = {
             status: n.status,
             nodeType: n.node_type,
             parentId: parentId,
+            mergeParentId: n.merge_parent_id || null,  // Map merge parent for dual edges
             messageCount: n.message_count || 0,
             tokenCount: 0, // Not currently returned by tree API
             lastActivity: new Date().toISOString(), // Placeholder
@@ -189,6 +191,7 @@ export const projectsApi = {
             status: n.status,
             nodeType: n.node_type,
             parentId: parentId,
+            mergeParentId: n.merge_parent_id || null,  // Map merge parent for dual edges
             messageCount: n.message_count || 0,
             tokenCount: 0,
             lastActivity: new Date().toISOString(),
