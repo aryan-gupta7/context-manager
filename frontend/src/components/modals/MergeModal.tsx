@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import useStore from '../../store';
 import { nodesApi } from '../../services/api/client';
 import { X, GitMerge, ArrowRight } from 'lucide-react';
@@ -12,20 +12,35 @@ const MergeModal = () => {
   const [selectedTargetId, setSelectedTargetId] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!mergingNodeId) return null;
-
-  const node = nodes.find(n => n.id === mergingNodeId);
+  const node = mergingNodeId ? nodes.find(n => n.id === mergingNodeId) : null;
   const potentialTargets = nodes.filter(n => n.id !== mergingNodeId && n.data.status !== 'deleted');
 
-  // Set default target to parent if not set
-  if (!selectedTargetId && node?.data.parentId) {
-      // Find parent if it exists in potential targets
+  // Set default target using useEffect to avoid React state update during render
+  useEffect(() => {
+    if (!mergingNodeId || selectedTargetId) return;
+    
+    if (node?.data.parentId) {
       const parent = potentialTargets.find(n => n.id === node.data.parentId);
-      if (parent) setSelectedTargetId(parent.id);
-      else if (potentialTargets.length > 0) setSelectedTargetId(potentialTargets[0].id);
-  }
+      if (parent) {
+        setSelectedTargetId(parent.id);
+        return;
+      }
+    }
+    
+    if (potentialTargets.length > 0) {
+      setSelectedTargetId(potentialTargets[0].id);
+    }
+  }, [mergingNodeId, node?.data.parentId, potentialTargets, selectedTargetId]);
 
-  if (!node) return null;
+  // Reset state when modal closes
+  useEffect(() => {
+    if (!mergingNodeId) {
+      setSelectedTargetId('');
+      setDescription('');
+    }
+  }, [mergingNodeId]);
+
+  if (!mergingNodeId || !node) return null;
 
   const handleClose = () => {
     setMergingNodeId(null);

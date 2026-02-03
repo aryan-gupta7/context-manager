@@ -111,7 +111,7 @@ const ChatPanel = () => {
                 <div className="flex flex-wrap items-center gap-2">
                     <CornerUpLeft size={16} className="text-slate-400" />
                     {/* Dynamic breadcrumb: show ancestors in reverse (root first) */}
-                    {[...ancestors].reverse().map((ancestor, index) => (
+                    {[...ancestors].reverse().map((ancestor, _index) => (
                         <span key={ancestor.id} className="flex items-center gap-2">
                             <span className="text-slate-400 text-sm font-medium">{ancestor.data.title}</span>
                             <span className="text-slate-400 text-sm">/</span>
