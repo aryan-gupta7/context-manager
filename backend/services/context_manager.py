@@ -11,6 +11,11 @@ import json
 
 class ContextManager:
 
+    def _clip_items(self, items: list, limit: int) -> list:
+        if limit <= 0:
+            return items
+        return items[:limit]
+
     async def snapshot_parent_context(self, session, parent_id: str) -> dict:
         """
         Create a frozen snapshot of parent's essential context.
@@ -105,10 +110,12 @@ class ContextManager:
                             })
         
         # Build the frozen snapshot
+        deduped_questions = list(dict.fromkeys(all_questions))
+
         snapshot = {
-            "facts": all_facts,
-            "decisions": all_decisions,
-            "open_questions": list(set(all_questions)),  # Dedupe
+            "facts": self._clip_items(all_facts, settings.INHERITED_FACT_LIMIT),
+            "decisions": self._clip_items(all_decisions, settings.INHERITED_DECISION_LIMIT),
+            "open_questions": self._clip_items(deduped_questions, settings.INHERITED_QUESTION_LIMIT),
             "key_entities": list(key_entities - {""}),  # Remove empty strings
             "conversation_history": conversation_context,  # Raw messages when no summaries
             "lineage_depth": len(lineage),

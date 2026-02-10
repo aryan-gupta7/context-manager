@@ -181,6 +181,52 @@ uvicorn main:app --reload
 
 ---
 
+
+## 🧩 Production Readiness Upgrades
+
+This repository now includes foundation changes to move from a local prototype toward a production-ready architecture:
+
+- **API-key based LLM integration** with provider abstraction (`ollama`, `openai`, `anthropic`, `gemini`, `deepseek`, `kimi`, or generic `openai_compatible`) so local deployment is optional.
+- **User authentication** with register/login/me endpoints using JWT and password hashing.
+- **Project ownership model** so each project is scoped to a specific authenticated user.
+- **Context snapshot controls** to cap inherited facts/decisions/questions and reduce prompt bloat.
+- Browser-level key storage: API-key settings are stored in localStorage and sent via request headers for per-user runtime routing.
+
+
+### LLM Provider Quick Config
+
+Use `.env` to switch providers without code changes:
+
+```env
+LLM_PROVIDER=openai
+LLM_API_KEY=...
+LLM_MAIN_MODEL=gpt-4o-mini
+LLM_GRAPH_MODEL=gpt-4o-mini
+
+# Optional overrides
+# LLM_BASE_URL=https://api.openai.com/v1
+# LLM_TIMEOUT_SECONDS=90
+```
+
+Examples:
+- `LLM_PROVIDER=anthropic` for Claude models.
+- `LLM_PROVIDER=gemini` for Gemini models.
+- `LLM_PROVIDER=deepseek` for DeepSeek.
+- `LLM_PROVIDER=kimi` for Moonshot/Kimi.
+- `LLM_PROVIDER=openai_compatible` with custom `LLM_BASE_URL` for any OpenAI-compatible endpoint.
+
+Security note: localStorage is convenient for development and single-user environments; for production teams, prefer encrypted server-side key vaulting.
+
+### Suggested next optimizations
+
+1. Add refresh tokens + token revocation table.
+2. Add DB migrations (Alembic) and remove `create_all` for prod.
+3. Add Redis caching for lineage summaries and graph lookups.
+4. Add retrieval memory layer (vector DB) for long-running projects.
+5. Add background workers (Celery/RQ) for summarize/graph extraction/merge jobs.
+6. Add observability stack (OpenTelemetry tracing + structured audit logs).
+7. Add rate limiting and org-level API quotas.
+
 ## 🔮 Future Roadmap
 
 - [ ] **RAG Integration**: "Talk" to your entire codebase or PDF library.

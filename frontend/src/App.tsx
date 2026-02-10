@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Sidebar from './components/layout/Sidebar';
 import Toolbar from './components/layout/Toolbar';
 import CanvasWrapper from './components/layout/Canvas';
@@ -6,10 +6,12 @@ import ChatPanel from './components/chat/ChatPanel';
 import BranchModal from './components/modals/BranchModal';
 import MergeModal from './components/modals/MergeModal';
 import ProjectModal from './components/modals/ProjectModal';
+import LlmSettingsModal from './components/modals/LlmSettingsModal';
 import useStore from './store';
 
 function App() {
   const { fetchProjects, currentProjectId } = useStore();
+  const [llmSettingsOpen, setLlmSettingsOpen] = useState(false);
 
   // Fetch projects on app load
   useEffect(() => {
@@ -18,7 +20,7 @@ function App() {
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-background-dark text-white font-display relative">
-      <Toolbar />
+      <Toolbar onOpenLlmSettings={() => setLlmSettingsOpen(true)} />
       <div className="flex flex-1 overflow-hidden relative">
         <Sidebar />
         <main className="flex-1 relative bg-background-dark overflow-hidden">
@@ -39,6 +41,7 @@ function App() {
         </main>
       </div>
       <ProjectModal />
+      <LlmSettingsModal open={llmSettingsOpen} onClose={() => setLlmSettingsOpen(false)} />
     </div>
   );
 }

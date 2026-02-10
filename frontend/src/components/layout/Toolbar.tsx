@@ -1,7 +1,11 @@
 import { Settings, Bell, UserCircle } from 'lucide-react';
 import ProjectSelector from './ProjectSelector';
 
-const Toolbar = () => {
+interface ToolbarProps {
+  onOpenLlmSettings: () => void;
+}
+
+const Toolbar = ({ onOpenLlmSettings }: ToolbarProps) => {
   return (
     <header className="z-50 flex items-center justify-between border-b border-surface-border bg-background-dark/90 backdrop-blur-md px-6 py-3 h-16 shrink-0">
       <div className="flex items-center gap-6 text-white">
@@ -25,7 +29,7 @@ const Toolbar = () => {
           <UserCircle size={18} />
           <span className="truncate">Profile</span>
         </button>
-        <button className="flex size-9 cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-surface-border hover:bg-gray-700 transition-colors text-white">
+        <button onClick={onOpenLlmSettings} className="flex size-9 cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-surface-border hover:bg-gray-700 transition-colors text-white" title="LLM Settings">
           <Settings size={20} />
         </button>
         <button className="flex size-9 cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-surface-border hover:bg-gray-700 transition-colors text-white relative">

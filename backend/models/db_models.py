@@ -11,11 +11,26 @@ class Project(Base):
     project_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     metadata_ = Column("metadata", JSON, default={})
     
     nodes = relationship("Node", back_populates="project", cascade="all, delete-orphan")
+    owner = relationship("User", back_populates="projects")
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    user_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email = Column(String(320), nullable=False, unique=True, index=True)
+    full_name = Column(String(200), nullable=True)
+    password_hash = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    projects = relationship("Project", back_populates="owner", cascade="all, delete-orphan")
 
 class Node(Base):
     __tablename__ = "nodes"
