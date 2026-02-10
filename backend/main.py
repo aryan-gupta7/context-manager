@@ -1,6 +1,7 @@
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func as sql_func
 from database import get_db, init_db
 from models.api_models import (
     CreateNodeRequest, NodeResponse,
@@ -10,7 +11,8 @@ from models.api_models import (
     DeleteRequest, DeleteResponse,
     CopyRequest,
     TreeNodeResponse, GraphResponse, GraphEdge,
-    CreateProjectRequest, UpdateProjectRequest, ProjectResponse
+    CreateProjectRequest, UpdateProjectRequest, ProjectResponse,
+    RegisterRequest, LoginRequest, AuthResponse
 )
 from crud.nodes import create_node as crud_create_node, get_node_by_id_or_404, get_tree as crud_get_tree, update_node_status, calculate_position, get_node_lineage
 from crud.messages import create_message, get_messages as crud_get_messages
@@ -19,7 +21,9 @@ from services.context_manager import context_manager
 from services.llm_service import llm_service
 from services.event_processor import record_event
 from services.graph_service import store_graph_edges, get_lineage_graph, soft_delete_edges, merge_graphs
+from services.auth_service import auth_service, get_current_user
 from utils.helpers import estimate_token_count
+from models.db_models import Project, User, Node
 import json
 import logging
 import uuid
@@ -27,6 +31,30 @@ import uuid
 # Configure Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def get_runtime_llm_overrides(request: Request) -> dict:
+    mode = (request.headers.get("X-LLM-MODE") or "").strip().lower()
+    provider = (request.headers.get("X-LLM-PROVIDER") or "").strip().lower()
+
+    overrides: dict[str, str] = {}
+
+    if mode == "local":
+        overrides["llm_provider"] = "ollama"
+        return overrides
+
+    if mode == "api" and provider:
+        overrides["llm_provider"] = provider
+
+    if request.headers.get("X-LLM-API-KEY"):
+        overrides["llm_api_key"] = request.headers["X-LLM-API-KEY"]
+    if request.headers.get("X-LLM-BASE-URL"):
+        overrides["llm_base_url"] = request.headers["X-LLM-BASE-URL"]
+    if request.headers.get("X-LLM-MAIN-MODEL"):
+        overrides["llm_main_model"] = request.headers["X-LLM-MAIN-MODEL"]
+    if request.headers.get("X-LLM-GRAPH-MODEL"):
+        overrides["llm_graph_model"] = request.headers["X-LLM-GRAPH-MODEL"]
+
+    return overrides
 
 app = FastAPI(title="Fractal Workspace Backend", version="0.1.0")
 
@@ -48,7 +76,14 @@ async def on_startup():
         logger.error(f"Database initialization failed: {e}")
 
 @app.post("/api/v1/nodes", response_model=NodeResponse)
-async def create_node(request: CreateNodeRequest, session: AsyncSession = Depends(get_db)):
+async def create_node(request: CreateNodeRequest, http_request: Request, session: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if request.project_id:
+        project_result = await session.execute(
+            select(Project).where(Project.project_id == request.project_id, Project.owner_id == current_user.user_id)
+        )
+        if not project_result.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="Project not found")
+
     # If parent provided, check existence
     if request.parent_id:
         await get_node_by_id_or_404(session, request.parent_id)
@@ -70,7 +105,8 @@ async def create_node(request: CreateNodeRequest, session: AsyncSession = Depend
         "position_x": pos_x,
         "position_y": pos_y,
         "status": "active",
-        "inherited_context": inherited_context  # Frozen parent context snapshot
+        "inherited_context": inherited_context,  # Frozen parent context snapshot
+        "created_by": str(current_user.user_id)
     }
     
     node = await crud_create_node(session, node_data)
@@ -91,10 +127,12 @@ async def create_node(request: CreateNodeRequest, session: AsyncSession = Depend
         chat_ctx = await context_manager.build_chat_context(session, node.node_id)
 
         # 3. Call LLM
-        if node.node_type == "exploration":
-            response_text, _ = await llm_service.exploration_chat(chat_ctx["system_prompt"], request.initial_message)
-        else:
-            response_text = await llm_service.chat(chat_ctx["system_prompt"], request.initial_message)
+        runtime_overrides = get_runtime_llm_overrides(http_request)
+        with llm_service.runtime_overrides(runtime_overrides):
+            if node.node_type == "exploration":
+                response_text, _ = await llm_service.exploration_chat(chat_ctx["system_prompt"], request.initial_message)
+            else:
+                response_text = await llm_service.chat(chat_ctx["system_prompt"], request.initial_message)
 
         # 4. Assistant Message
         asst_token_count = estimate_token_count(response_text)
@@ -115,7 +153,7 @@ async def create_node(request: CreateNodeRequest, session: AsyncSession = Depend
     )
 
 @app.post("/api/v1/nodes/{node_id}/messages", response_model=MessageResponse)
-async def send_message(node_id: uuid.UUID, request: SendMessageRequest, session: AsyncSession = Depends(get_db)):
+async def send_message(node_id: uuid.UUID, request: SendMessageRequest, http_request: Request, session: AsyncSession = Depends(get_db)):
     node = await get_node_by_id_or_404(session, node_id)
     if node.status != "active":
         raise HTTPException(status_code=400, detail="Node is not active")
@@ -132,15 +170,17 @@ async def send_message(node_id: uuid.UUID, request: SendMessageRequest, session:
     fallback_from = None
     agent_used = "main-reasoner"
     
-    if node.node_type == "exploration":
-        response_text, fallback = await llm_service.exploration_chat(chat_ctx["system_prompt"], request.content)
-        fallback_from = fallback
-        if fallback:
-            agent_used = "main-reasoner (fallback)"
+    runtime_overrides = get_runtime_llm_overrides(http_request)
+    with llm_service.runtime_overrides(runtime_overrides):
+        if node.node_type == "exploration":
+            response_text, fallback = await llm_service.exploration_chat(chat_ctx["system_prompt"], request.content)
+            fallback_from = fallback
+            if fallback:
+                agent_used = "main-reasoner (fallback)"
+            else:
+                agent_used = "exploration-model"
         else:
-            agent_used = "exploration-model"
-    else:
-        response_text = await llm_service.chat(chat_ctx["system_prompt"], request.content)
+            response_text = await llm_service.chat(chat_ctx["system_prompt"], request.content)
 
     # 4. Assistant Message
     asst_token_count = estimate_token_count(response_text)
@@ -160,7 +200,7 @@ async def send_message(node_id: uuid.UUID, request: SendMessageRequest, session:
     )
 
 @app.post("/api/v1/nodes/{node_id}/summarize", response_model=SummarizeResponse)
-async def summarize_node(node_id: uuid.UUID, session: AsyncSession = Depends(get_db)):
+async def summarize_node(node_id: uuid.UUID, http_request: Request, session: AsyncSession = Depends(get_db)):
     node = await get_node_by_id_or_404(session, node_id)
     if node.status != "active":
         raise HTTPException(status_code=400, detail="Node is not active")
@@ -169,8 +209,10 @@ async def summarize_node(node_id: uuid.UUID, session: AsyncSession = Depends(get
     ctx = await context_manager.build_summarize_context(session, node_id)
     
     # Call Summarizer
+    runtime_overrides = get_runtime_llm_overrides(http_request)
     try:
-        summary_text = await llm_service.summarize(ctx["system_prompt"], "")
+        with llm_service.runtime_overrides(runtime_overrides):
+            summary_text = await llm_service.summarize(ctx["system_prompt"], "")
         summary_dict = json.loads(summary_text)
     except json.JSONDecodeError:
         raise HTTPException(status_code=500, detail="Failed to parse summary JSON from LLM")
@@ -188,7 +230,8 @@ async def summarize_node(node_id: uuid.UUID, session: AsyncSession = Depends(get
     
     try:
         graph_ctx = await context_manager.build_graph_context(session, node_id, summary_dict)
-        graph_response = await llm_service.extract_graph(graph_ctx["system_prompt"], "")
+        with llm_service.runtime_overrides(runtime_overrides):
+            graph_response = await llm_service.extract_graph(graph_ctx["system_prompt"], "")
         graph_data = json.loads(graph_response)
         
         entities = graph_data.get("entities", [])
@@ -214,7 +257,7 @@ async def summarize_node(node_id: uuid.UUID, session: AsyncSession = Depends(get
     )
 
 @app.post("/api/v1/nodes/merge", response_model=MergeResponse)
-async def merge_nodes(request: MergeRequest, session: AsyncSession = Depends(get_db)):
+async def merge_nodes(request: MergeRequest, http_request: Request, session: AsyncSession = Depends(get_db)):
     source = await get_node_by_id_or_404(session, request.source_node_id)
     target = await get_node_by_id_or_404(session, request.target_node_id)
 
@@ -229,7 +272,9 @@ async def merge_nodes(request: MergeRequest, session: AsyncSession = Depends(get
 
     # Merge Logic
     ctx = await context_manager.build_merge_context(session, source.node_id, target.node_id)
-    merge_resp_text = await llm_service.merge(ctx["system_prompt"], "")
+    runtime_overrides = get_runtime_llm_overrides(http_request)
+    with llm_service.runtime_overrides(runtime_overrides):
+        merge_resp_text = await llm_service.merge(ctx["system_prompt"], "")
     
     try:
         merge_data = json.loads(merge_resp_text)
@@ -284,7 +329,7 @@ async def delete_node(node_id: uuid.UUID, request: DeleteRequest, session: Async
     )
 
 @app.post("/api/v1/nodes/{node_id}/copy", response_model=NodeResponse)
-async def copy_node(node_id: uuid.UUID, request: CopyRequest, session: AsyncSession = Depends(get_db)):
+async def copy_node(node_id: uuid.UUID, request: CopyRequest, session: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     original = await get_node_by_id_or_404(session, node_id)
     
     new_parent_id = request.new_parent_id or original.parent_id
@@ -299,7 +344,8 @@ async def copy_node(node_id: uuid.UUID, request: CopyRequest, session: AsyncSess
         "node_type": original.node_type,
         "position_x": pos_x,
         "position_y": pos_y,
-        "status": "active"
+        "status": "active",
+        "created_by": str(current_user.user_id)
     })
     
     # Copy latest summary if any
@@ -455,17 +501,59 @@ async def get_inherited_context(node_id: uuid.UUID, session: AsyncSession = Depe
     }
 
 # ========================
+# AUTH ENDPOINTS
+# ========================
+
+@app.post("/api/v1/auth/register", response_model=AuthResponse)
+async def register(request: RegisterRequest, session: AsyncSession = Depends(get_db)):
+    existing = await session.execute(select(User).where(User.email == request.email.lower().strip()))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    user = User(
+        email=request.email.lower().strip(),
+        full_name=request.full_name,
+        password_hash=auth_service.hash_password(request.password),
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    token = auth_service.create_access_token(user.user_id)
+    return AuthResponse(access_token=token, user_id=user.user_id, email=user.email)
+
+
+@app.post("/api/v1/auth/login", response_model=AuthResponse)
+async def login(request: LoginRequest, session: AsyncSession = Depends(get_db)):
+    user = await auth_service.authenticate_user(session, request.email, request.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    token = auth_service.create_access_token(user.user_id)
+    return AuthResponse(access_token=token, user_id=user.user_id, email=user.email)
+
+
+@app.get("/api/v1/auth/me")
+async def me(current_user: User = Depends(get_current_user)):
+    return {
+        "user_id": str(current_user.user_id),
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "is_active": current_user.is_active,
+    }
+
+
+# ========================
 # PROJECT ENDPOINTS
 # ========================
 
-from models.db_models import Project
-from sqlalchemy import select, func as sql_func
 
 @app.post("/api/v1/projects", response_model=ProjectResponse)
-async def create_project(request: CreateProjectRequest, session: AsyncSession = Depends(get_db)):
+async def create_project(request: CreateProjectRequest, session: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     project = Project(
         name=request.name,
-        description=request.description
+        description=request.description,
+        owner_id=current_user.user_id
     )
     session.add(project)
     await session.commit()
@@ -493,6 +581,7 @@ async def create_project(request: CreateProjectRequest, session: AsyncSession = 
     
     return ProjectResponse(
         project_id=project.project_id,
+        owner_id=project.owner_id,
         name=project.name,
         description=project.description,
         created_at=project.created_at,
@@ -501,8 +590,7 @@ async def create_project(request: CreateProjectRequest, session: AsyncSession = 
     )
 
 @app.get("/api/v1/projects", response_model=list[ProjectResponse])
-async def list_projects(session: AsyncSession = Depends(get_db)):
-    from models.db_models import Node
+async def list_projects(session: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     
     # Get projects with node count
     result = await session.execute(
@@ -511,6 +599,7 @@ async def list_projects(session: AsyncSession = Depends(get_db)):
             sql_func.count(Node.node_id).label("node_count")
         )
         .outerjoin(Node, Project.project_id == Node.project_id)
+        .where(Project.owner_id == current_user.user_id)
         .group_by(Project.project_id)
         .order_by(Project.created_at.desc())
     )
@@ -521,6 +610,7 @@ async def list_projects(session: AsyncSession = Depends(get_db)):
         node_count = row[1]
         projects.append(ProjectResponse(
             project_id=project.project_id,
+            owner_id=project.owner_id,
             name=project.name,
             description=project.description,
             created_at=project.created_at,
@@ -531,11 +621,10 @@ async def list_projects(session: AsyncSession = Depends(get_db)):
     return projects
 
 @app.get("/api/v1/projects/{project_id}", response_model=ProjectResponse)
-async def get_project(project_id: uuid.UUID, session: AsyncSession = Depends(get_db)):
-    from models.db_models import Node
+async def get_project(project_id: uuid.UUID, session: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     
     result = await session.execute(
-        select(Project).where(Project.project_id == project_id)
+        select(Project).where(Project.project_id == project_id, Project.owner_id == current_user.user_id)
     )
     project = result.scalar_one_or_none()
     
@@ -550,6 +639,7 @@ async def get_project(project_id: uuid.UUID, session: AsyncSession = Depends(get
     
     return ProjectResponse(
         project_id=project.project_id,
+        owner_id=project.owner_id,
         name=project.name,
         description=project.description,
         created_at=project.created_at,
@@ -558,9 +648,9 @@ async def get_project(project_id: uuid.UUID, session: AsyncSession = Depends(get
     )
 
 @app.put("/api/v1/projects/{project_id}", response_model=ProjectResponse)
-async def update_project(project_id: uuid.UUID, request: UpdateProjectRequest, session: AsyncSession = Depends(get_db)):
+async def update_project(project_id: uuid.UUID, request: UpdateProjectRequest, session: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await session.execute(
-        select(Project).where(Project.project_id == project_id)
+        select(Project).where(Project.project_id == project_id, Project.owner_id == current_user.user_id)
     )
     project = result.scalar_one_or_none()
     
@@ -577,6 +667,7 @@ async def update_project(project_id: uuid.UUID, request: UpdateProjectRequest, s
     
     return ProjectResponse(
         project_id=project.project_id,
+        owner_id=project.owner_id,
         name=project.name,
         description=project.description,
         created_at=project.created_at,
@@ -585,9 +676,9 @@ async def update_project(project_id: uuid.UUID, request: UpdateProjectRequest, s
     )
 
 @app.delete("/api/v1/projects/{project_id}")
-async def delete_project(project_id: uuid.UUID, session: AsyncSession = Depends(get_db)):
+async def delete_project(project_id: uuid.UUID, session: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await session.execute(
-        select(Project).where(Project.project_id == project_id)
+        select(Project).where(Project.project_id == project_id, Project.owner_id == current_user.user_id)
     )
     project = result.scalar_one_or_none()
     
@@ -602,10 +693,10 @@ async def delete_project(project_id: uuid.UUID, session: AsyncSession = Depends(
     return {"status": "deleted", "project_id": str(project_id)}
 
 @app.get("/api/v1/projects/{project_id}/nodes/tree", response_model=list[TreeNodeResponse])
-async def get_project_tree(project_id: uuid.UUID, session: AsyncSession = Depends(get_db)):
+async def get_project_tree(project_id: uuid.UUID, session: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     # Verify project exists
     result = await session.execute(
-        select(Project).where(Project.project_id == project_id)
+        select(Project).where(Project.project_id == project_id, Project.owner_id == current_user.user_id)
     )
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Project not found")

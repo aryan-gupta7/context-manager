@@ -5,6 +5,25 @@ from datetime import datetime
 
 # --- REQUEST MODELS ---
 
+
+class RegisterRequest(BaseModel):
+    email: str
+    full_name: Optional[str] = None
+    password: constr(min_length=8, max_length=128)
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user_id: UUID
+    email: str
+
+
 class CreateProjectRequest(BaseModel):
     name: constr(min_length=1, max_length=200)
     description: Optional[str] = None
@@ -37,6 +56,7 @@ class CopyRequest(BaseModel):
 
 class ProjectResponse(BaseModel):
     project_id: UUID
+    owner_id: UUID
     name: str
     description: Optional[str]
     created_at: datetime

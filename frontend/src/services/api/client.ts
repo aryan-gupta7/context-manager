@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type { NodeData, CreateNodeRequest, Message, NodeStatus, NodeType } from '../../types/node.types';
 import type { Node } from 'reactflow';
+import { loadLlmSettings } from '../llmSettings';
 
 
 
@@ -10,6 +11,30 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+api.interceptors.request.use((config) => {
+  const llm = loadLlmSettings();
+
+  config.headers = config.headers || {};
+  config.headers['X-LLM-MODE'] = llm.mode;
+
+  if (llm.mode === 'local') {
+    config.headers['X-LLM-PROVIDER'] = 'ollama';
+    delete config.headers['X-LLM-API-KEY'];
+    delete config.headers['X-LLM-BASE-URL'];
+    delete config.headers['X-LLM-MAIN-MODEL'];
+    delete config.headers['X-LLM-GRAPH-MODEL'];
+  } else {
+    config.headers['X-LLM-PROVIDER'] = llm.provider || 'openai';
+    if (llm.apiKey) config.headers['X-LLM-API-KEY'] = llm.apiKey;
+    if (llm.baseUrl) config.headers['X-LLM-BASE-URL'] = llm.baseUrl;
+    if (llm.mainModel) config.headers['X-LLM-MAIN-MODEL'] = llm.mainModel;
+    if (llm.graphModel) config.headers['X-LLM-GRAPH-MODEL'] = llm.graphModel;
+  }
+
+  return config;
+});
+
 
 // Mock implementations
 // Backend Response Types
